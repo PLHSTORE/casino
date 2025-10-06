@@ -219,185 +219,228 @@
 
 
 
+
+
+
 <script>
+/* ==== WALLET (ARS) — saldo compartido entre todos los juegos ==== */
 (function(){
   const STORAGE_KEY = 'casino_balance_ARS';
-  const DEFAULT_BAL = 1000;
   const ADMIN_PATH = './admin.json';
-  const POLL_INTERVAL_MS = 5000; // poll admin.json every 5 seconds for changes
+  const DEFAULT_BAL = 1000; // si no hay admin.json ni storage
+  const POLL_MS = 0; // 0 = sin polling automático; se puede habilitar si deseas
 
-  // Helpers
   function toNumber(v){
-    if (v === null || v === undefined) return 0;
+    if(v===null||v===undefined) return 0;
     v = String(v).replace(/[^\d\.,-]/g,'').trim();
+    // normalizar separadores: quitar miles y dejar punto decimal
     v = v.replace(/\.(?=.*\.)/g,'').replace(/,(?=.*\,)/g,'');
     v = v.replace(',', '.');
     const n = parseFloat(v);
     return isNaN(n)?0:n;
   }
-  function formatARS(n){
+  function fmt(n){
     if (Math.abs(Math.round(n) - n) < 1e-9) return Math.round(n).toLocaleString('es-AR');
     return n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
   }
-
-  function readStoredBalance(){
-    try{
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if(raw !== null) return Number(raw);
-    }catch(e){}
-    return null;
-  }
-  function writeStoredBalance(v){
-    try{
-      localStorage.setItem(STORAGE_KEY, String(Number(v)||0));
-      updateAllDisplays();
-    }catch(e){}
+  function setText(el, amountARS){
+    if(!el) return;
+    const txt = fmt(amountARS) + ' ARS';
+    if(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.value = txt;
+    else el.textContent = txt;
   }
 
-  // Fetch admin.json and apply if different
-  let lastAdminRaw = null;
-  function fetchAndApplyAdmin(){
-    return fetch(ADMIN_PATH, {cache:'no-store'}).then(r=>{
-      if(!r.ok) throw new Error('no admin');
-      return r.text();
-    }).then(txt=>{
-      if(txt === lastAdminRaw) return null; // no change
-      lastAdminRaw = txt;
-      try{
-        const cfg = JSON.parse(txt);
-        const b = (cfg && typeof cfg.balance_ARS !== 'undefined')? Number(cfg.balance_ARS) : DEFAULT_BAL;
-        writeStoredBalance(b);
-        return b;
-      }catch(e){
-        // invalid JSON
-        return null;
-      }
-    }).catch(err=>{
-      if(readStoredBalance() === null) writeStoredBalance(DEFAULT_BAL);
-      return null;
-    });
-  }
-
-  // Text node sanitizer similar to before
-  function sanitizeTextNode(node){
-    if(!node || !node.nodeValue) return;
-    let txt = node.nodeValue;
-    if(/BTC/i.test(txt) || /([0-9\.,]+)\s*(BTC|btc)/i.test(txt)){
-      const bal = readStoredBalance() ?? DEFAULT_BAL;
-      txt = txt.replace(/([0-9\.,]+)\s*(BTC|btc)/ig, function(_,num){ return formatARS(bal) + ' ARS'; });
-      txt = txt.replace(/BTC/ig, 'ARS');
-      node.nodeValue = txt;
-    }
-  }
-
-  function updateAllDisplays(){
-    const bal = Number(localStorage.getItem(STORAGE_KEY)) || 0;
-    const selectors = [
-      '#balance', '#saldo', '#balanceLabel', '.balance', '.saldo', '.user-balance', '.balance-value'
-    ];
-    selectors.forEach(sel=>{
-      document.querySelectorAll(sel).forEach(el=>{
-        if(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'){
-          el.value = formatARS(bal);
-        } else {
-          el.textContent = formatARS(bal) + ' ARS';
-        }
+  const Wallet = {
+    get(){ const v = localStorage.getItem(STORAGE_KEY); return v===null? null : Number(v)||0; },
+    set(v){ localStorage.setItem(STORAGE_KEY, String(Number(v)||0)); Wallet.updateDisplays(); },
+    add(v){ const cur = Number(localStorage.getItem(STORAGE_KEY))||0; Wallet.set(cur + Number(v||0)); },
+    sub(v){ const cur = Number(localStorage.getItem(STORAGE_KEY))||0; Wallet.set(cur - Number(v||0)); },
+    ensure(){
+      let v = Wallet.get();
+      if(v!==null) return Promise.resolve(v);
+      return fetch(ADMIN_PATH, {cache:'no-store'}).then(r=>r.ok?r.json():{balance_ARS:DEFAULT_BAL})
+      .catch(()=>({balance_ARS:DEFAULT_BAL}))
+      .then(cfg=>{ Wallet.set(Number((cfg && cfg.balance_ARS)!=null? cfg.balance_ARS : DEFAULT_BAL)); return Wallet.get(); });
+    },
+    updateDisplays(){
+      const bal = Number(localStorage.getItem(STORAGE_KEY))||0;
+      ['#balance','#saldo','#balanceLabel','.balance','.saldo','.user-balance','.balance-value'].forEach(sel=>{
+        document.querySelectorAll(sel).forEach(el=> setText(el, bal));
       });
-    });
-    walkTextNodes(document.body, sanitizeTextNode);
-  }
-
-  function walkTextNodes(node, fn){
-    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null, false);
-    let n;
-    while(n = walker.nextNode()){
-      fn(n);
-    }
-  }
-
-  const observer = new MutationObserver(function(muts){
-    muts.forEach(m=>{
-      m.addedNodes.forEach(node=>{
-        if(node.nodeType === Node.TEXT_NODE){
-          sanitizeTextNode(node);
-        } else if(node.nodeType === Node.ELEMENT_NODE){
-          walkTextNodes(node, sanitizeTextNode);
+      // también limpiar BTC visibles en texto
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+      let n; while(n = walker.nextNode()){
+        if(/\bBTC\b/i.test(n.nodeValue) || /([0-9\.,]+)\s*(BTC|btc)/.test(n.nodeValue)){
+          n.nodeValue = n.nodeValue.replace(/([0-9\.,]+)\s*(BTC|btc)/ig, fmt(bal) + ' ARS').replace(/BTC/ig, 'ARS');
         }
-      });
-    });
-  });
-  observer.observe(document.documentElement || document.body, {childList:true, subtree:true});
-
-  function sanitizeBetInputs(){
-    const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"], input:not([type])'));
-    inputs.forEach(inp=>{
-      const idn = (inp.id||'') + ' ' + (inp.name||'') + ' ' + (inp.className||'');
-      if(/bet|wager|amount|apuesta|monto|stake|cantidad/i.test(idn)){
-        inp.setAttribute('placeholder', 'Monto en ARS');
-        inp.addEventListener('input', function(e){
-          const v = inp.value || '';
-          const num = toNumber(v);
-          inp.value = formatARS(num);
-        });
       }
-    });
-
-    const buttons = Array.from(document.querySelectorAll('button, a'));
-    buttons.forEach(btn=>{
-      const txt = (btn.textContent||'') + ' ' + (btn.id||'') + ' ' + (btn.className||'');
-      if(/bet|apostar|apost|spin|jugar|play|stake/i.test(txt)){
-        btn.addEventListener('click', function(e){
-          let betInput = null;
-          const parent = btn.closest('form, div, section, article') || document;
-          const candidates = parent.querySelectorAll('input, textarea, [contenteditable="true"]');
-          candidates.forEach(c=>{
-            const idn = (c.id||'') + ' ' + (c.name||'') + ' ' + (c.className||'');
-            if(/bet|wager|amount|apuesta|monto|stake|cantidad/i.test(idn) && !betInput) betInput = c;
-          });
-          if(!betInput){
-            Array.from(parent.querySelectorAll('input')).forEach(c=>{
-              if((c.type==='number' || c.type==='text') && !betInput) betInput = c;
-            });
-          }
-          if(betInput){
-            const num = toNumber(betInput.value || betInput.textContent || '');
-            const final = (num <= 0) ? 1 : num;
-            if(betInput.tagName === 'INPUT' || betInput.tagName === 'TEXTAREA'){
-              betInput.value = formatARS(final);
-            } else {
-              betInput.textContent = formatARS(final);
-            }
-          }
-          walkTextNodes(parent, sanitizeTextNode);
-        }, {capture:true});
-      }
-    });
-  }
-
-  window.CasinoBalance = {
-    get: function(){ return Number(localStorage.getItem(STORAGE_KEY)) || 0; },
-    set: function(v){ writeStoredBalance(Number(v)||0); },
-    add: function(v){ const cur = Number(localStorage.getItem(STORAGE_KEY))||0; writeStoredBalance(cur + Number(v||0)); },
-    sub: function(v){ const cur = Number(localStorage.getItem(STORAGE_KEY))||0; writeStoredBalance(cur - Number(v||0)); },
-    reloadFromAdmin: function(){ return fetchAndApplyAdmin(); }
+    }
   };
+  window.WalletARS = Wallet;
 
-  // Initialize: fetch admin.json immediately, then poll
-  fetchAndApplyAdmin().then(function(){
-    updateAllDisplays();
-    sanitizeBetInputs();
-    setInterval(function(){
-      fetchAndApplyAdmin().then(function(changed){
-        if(changed !== null){
-          console.info('admin.json updated, balance set to', changed);
-        }
+  // Ajustes de inputs de apuesta
+  function normalizeBetInputs(){
+    document.querySelectorAll('input#betInput, input[name*=bet], input[id*=bet], input[class*=bet], input[name*=apuesta], input[id*=apuesta], input[class*=apuesta]').forEach(inp=>{
+      try{
+        inp.min = '1'; inp.step = '1';
+        if(!inp.value || /BTC/i.test(inp.value)) inp.value = '100';
+        inp.placeholder = 'Monto en ARS';
+      }catch(e){}
+    });
+    document.querySelectorAll('#betLabel, .bet-label, .apuesta-label').forEach(l=>{ const bal=Wallet.get()||0; setText(l, bal); });
+    // Sustituir textos BTC por ARS en elementos comunes
+    document.querySelectorAll('*').forEach(el=>{
+      if(el.children && el.children.length) return;
+      if(typeof el.textContent === 'string' && /BTC/i.test(el.textContent)){
+        el.textContent = el.textContent.replace(/BTC/ig, 'ARS');
+      }
+    });
+  }
+
+  // ==== Parches por juego ====
+
+  // Blackjack: sincronizar GAME.balance con Wallet y usar ARS
+  function patchBlackjack(){
+    if(!window.GAME || !window.updateBalance) return;
+    // formateador ARS
+    window.formatBTC = function(x){ 
+      const n = Number(x)||0;
+      return (Math.abs(Math.round(n)-n)<1e-9? Math.round(n).toLocaleString('es-AR') : n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}));
+    };
+    // envolver updateBalance para que escriba también a Wallet
+    const _updateBalance = window.updateBalance;
+    window.updateBalance = function(){
+      try{ Wallet.set(Number(GAME.balance)||0); }catch(e){}
+      if(typeof _updateBalance === 'function') _updateBalance();
+      const el = document.getElementById('betLabel') || document.querySelector('.balance,.saldo,#balanceLabel');
+      if(el && /BTC/i.test(el.textContent)) el.textContent = el.textContent.replace(/BTC/ig,'ARS');
+    };
+    Wallet.ensure().then(bal=>{
+      try{ GAME.balance = Number(bal)||0; }catch(e){}
+      if(typeof window.updateBalance === 'function') window.updateBalance();
+    });
+    try{
+      let _bal = window.GAME.balance;
+      Object.defineProperty(window.GAME, 'balance', {
+        get(){ return _bal; },
+        set(v){ _bal = Number(v)||0; Wallet.set(_bal); },
+        configurable: true
       });
-      updateAllDisplays();
-      sanitizeBetInputs();
-    }, POLL_INTERVAL_MS);
+    }catch(e){}
+    normalizeBetInputs();
+    setInterval(()=>Wallet.updateDisplays(), 800);
+  }
+
+  // Mines: restar apuesta al iniciar, sumar payout en win/cashout
+  function patchMines(){
+    if(typeof window.startGame !== 'function' || typeof window.endGame !== 'function') return;
+    const _startGame = window.startGame;
+    window.startGame = function(){
+      const betInput = document.getElementById('betInput') || document.querySelector('input[id*=bet],input[name*=bet],input[class*=bet]');
+      const bet = Wallet.get()!=null ? toNumber(betInput ? betInput.value : '0') : 0;
+      const bal = Wallet.get() ?? DEFAULT_BAL;
+      if(!bet || bet<=0){ alert('Ingresa una apuesta válida (ARS).'); return; }
+      if(bet > bal){ alert('Saldo insuficiente.'); return; }
+      Wallet.sub(bet);
+      return _startGame.apply(this, arguments);
+    };
+    const _endGame = window.endGame;
+    window.endGame = function(result){
+      const betInput = document.getElementById('betInput') || document.querySelector('input[id*=bet],input[name*=bet],input[class*=bet]');
+      const bet = toNumber(betInput ? betInput.value : '0');
+      if(result === 'win' && typeof window.calcMultiplier === 'function'){
+        const rev = (window.revealed && window.revealed.size) ? window.revealed.size : 0;
+        const mines = (window.mineCount!=null) ? window.mineCount : 3;
+        const mult = window.calcMultiplier(rev, mines);
+        const payout = bet * mult;
+        Wallet.add(payout);
+      }
+      return _endGame.apply(this, arguments);
+    };
+    if(typeof window.cashout === 'function'){
+      const _cash = window.cashout;
+      window.cashout = function(){
+        let bet = 0, payout = 0;
+        const betInput = document.getElementById('betInput') || document.querySelector('input[id*=bet],input[name*=bet],input[class*=bet]');
+        bet = toNumber(betInput ? betInput.value : '0');
+        if(typeof window.calcMultiplier === 'function' && window.revealed && window.mineCount!=null){
+          const mult = window.calcMultiplier(window.revealed.size, window.mineCount);
+          payout = bet * mult;
+        }
+        const ret = _cash.apply(this, arguments);
+        if(payout>0) Wallet.add(payout);
+        return ret;
+      }
+    }
+    normalizeBetInputs();
+  }
+
+  // Plinko: restar por bola, pagar onBallSettled
+  function patchPlinko(){
+    if(typeof window.spawnBall !== 'function' || typeof window.onBallSettled !== 'function') return;
+    const _spawnBall = window.spawnBall;
+    window.spawnBall = function(){
+      const betInput = document.getElementById('betInput') || document.querySelector('input[id*=bet],input[name*=bet],input[class*=bet]');
+      const bet = toNumber(betInput ? betInput.value : '0');
+      const bal = Wallet.get() ?? DEFAULT_BAL;
+      if(!bet || bet<=0){ alert('Ingresa una apuesta válida (ARS).'); return; }
+      if(bet > bal){ alert('Saldo insuficiente.'); return; }
+      Wallet.sub(bet);
+      return _spawnBall.apply(this, arguments);
+    };
+    const _onBallSettled = window.onBallSettled;
+    window.onBallSettled = function(b){
+      try{
+        const rowsSelect = document.getElementById('rowsSelect') || document.querySelector('#rows,#rowsSelect,select[id*=rows]');
+        const riskSelect = document.getElementById('riskSelect') || document.querySelector('#risk,#riskSelect,select[id*=risk]');
+        const betInput = document.getElementById('betInput') || document.querySelector('input[id*=bet],input[name*=bet],input[class*=bet]');
+        const bet = toNumber(betInput ? betInput.value : '0');
+        const mult = window.MULTS[riskSelect.value][parseInt(rowsSelect.value,10)][b.idx];
+        const payout = bet * mult;
+        Wallet.add(payout);
+      }catch(e){}
+      return _onBallSettled.apply(this, arguments);
+    };
+    normalizeBetInputs();
+  }
+
+  // Aviator: restar al iniciar, sumar en cashout
+  function patchAviator(){
+    if(typeof window.startRound !== 'function' || typeof window.cashout !== 'function') return;
+    const _start = window.startRound;
+    window.startRound = function(){
+      const betInput = document.getElementById('betInput') || document.querySelector('input[id*=bet],input[name*=bet],input[class*=bet]');
+      const bet = toNumber(betInput ? betInput.value : '0');
+      const bal = Wallet.get() ?? DEFAULT_BAL;
+      if(!bet || bet<=0){ alert('Ingresa una apuesta válida (ARS).'); return; }
+      if(bet > bal){ alert('Saldo insuficiente.'); return; }
+      Wallet.sub(bet);
+      return _start.apply(this, arguments);
+    };
+    const _cash = window.cashout;
+    window.cashout = function(){
+      try{
+        const payout = (typeof window.bet!=='undefined' && typeof window.currentMult!=='undefined') ? (Number(window.bet)||0) * (Number(window.currentMult)||0) : 0;
+        if(payout>0) Wallet.add(payout);
+      }catch(e){}
+      return _cash.apply(this, arguments);
+    };
+    normalizeBetInputs();
+  }
+
+  function patchIndex(){ Wallet.updateDisplays(); }
+
+  // Run
+  Wallet.ensure().then(()=>{
+    normalizeBetInputs();
+    patchBlackjack();
+    patchMines();
+    patchPlinko();
+    patchAviator();
+    patchIndex();
+    Wallet.updateDisplays();
   });
 })();
 </script>
-
 </body>
 </html>
