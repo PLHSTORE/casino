@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Casino — Mini Juegos (Pro, 2 filas tipo Stake)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  /* ================== Variables y base ================== */
+  :root{
+    --bg:#0f1724;
+    --card:#0b1220;
+    --glass: rgba(255,255,255,0.04);
+    --glass-2: rgba(255,255,255,0.03);
+    --glass-border: rgba(255,255,255,0.06);
+    --muted: rgba(255,255,255,0.65);
+    --accent1-start:#7c3aed;
+    --accent1-end:#06b6d4;
+    --accent-glow: rgba(124,58,237,0.22);
+    --card-radius:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    background:
+      radial-gradient(800px 400px at 10% 10%, rgba(124,58,237,0.06), transparent 10%),
+      radial-gradient(700px 350px at 90% 80%, rgba(6,182,212,0.04), transparent 10%),
+      var(--bg);
+    color:#e6eef8;
+    -webkit-font-smoothing:antialiased;
+    padding:28px;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+  }
+  .container{max-width:1200px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:34px;gap:20px}
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#071025,#0b1220);display:grid;place-items:center;border:1px solid rgba(255,255,255,0.03)}
+  h1{font-size:18px;margin:0}
+  p.sub{margin:0;color:var(--muted);font-size:13px}
+  .balance{background:var(--glass);padding:10px 14px;border-radius:999px;border:1px solid var(--glass-border);display:flex;gap:10px;align-items:center}
+  .balance .dot{width:12px;height:12px;border-radius:50%;background:linear-gradient(90deg,#34d399,#10b981);box-shadow:0 6px 18px rgba(16,185,129,0.12)}
+
+  /* ================== Hero ================== */
+  .hero{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:28px;flex-wrap:wrap}
+  .hero-left{flex:1;min-width:260px}
+  .hero-right{width:300px;min-width:260px}
+  .title{font-size:28px;font-weight:800;margin:0 0 6px}
+  .subtitle{color:var(--muted);margin:0 0 18px}
+
+  /* ================== Grid de juegos (compacta, 2 filas tipo Stake) ================== */
+  .games-wrap{max-width:860px;margin:0 auto;} /* Limita el ancho para 2 columnas en desktop */
+  .games-grid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(180px,1fr)); /* Fuerza 2 columnas en escritorio */
+    gap:18px; /* un poco menos separadas para look compacto */
+    align-items:start;
+  }
+  /* En mobile, 1 columna */
+  @media (max-width:640px){
+    .games-grid{grid-template-columns:1fr}
+  }
+
+  .card-game{
+    background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius:var(--card-radius);
+    padding:14px; /* antes 18px */
+    border:1px solid var(--glass-border);
+    box-shadow:0 10px 30px rgba(2,6,23,0.6);
+    transition:transform .28s cubic-bezier(.2,.9,.2,1), box-shadow .28s ease, background .28s ease;
+    display:flex;flex-direction:column;gap:8px; /* antes 12px */
+    overflow:hidden;
+  }
+  .card-game:hover{transform:translateY(-8px);box-shadow:0 30px 80px rgba(2,6,23,0.85);background:rgba(255,255,255,0.035)}
+
+  /* imagen compacta */
+  .hero-img, .game-img{
+    width:100%;
+    height:120px; /* antes 160px */
+    border-radius:12px;
+    background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border:1px solid rgba(255,255,255,0.02);
+    display:grid;place-items:center;
+    position:relative;overflow:hidden;
+  }
+  .game-img svg{width:70%;height:70%;opacity:0.95}
+
+  .tag{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);font-size:12px;color:var(--muted)}
+
+  .meta{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .desc{color:var(--muted);font-size:13px;line-height:1.35} /* antes 14px */
+
+  .controls{display:flex;gap:8px;margin-top:auto;align-items:center}
+  .btn{padding:9px 12px;border-radius:10px;border:none;background:linear-gradient(90deg,var(--accent1-start),var(--accent1-end));color:white;font-weight:700;cursor:pointer;box-shadow:0 8px 30px rgba(124,58,237,0.14);transition:transform .18s ease,opacity .18s ease;width:100%}
+  .btn:hover{transform:translateY(-3px);opacity:0.98}
+  .btn.secondary{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted);box-shadow:none;width:auto;padding:8px 12px}
+
+  /* títulos compactos */
+  .card-game h3{font-size:15px;margin:2px 0 0} /* antes 16/17px aprox */
+
+  /* big badge */
+  .ribbon{position:absolute;left:12px;top:12px;padding:8px 12px;border-radius:999px;background:linear-gradient(90deg,#ffd166,#ef4444);color:#071026;font-weight:800;font-size:13px;box-shadow:0 6px 20px rgba(239,68,68,0.12)}
+
+  /* hover glow effect */
+  .card-game::after{
+    content:'';
+    position:absolute;inset:0;pointer-events:none;border-radius:var(--card-radius);box-shadow:0 0 40px 6px transparent;transition:box-shadow .28s ease;
+    z-index:0;
+  }
+  .card-game:hover::after{box-shadow:0 0 60px 12px var(--accent-glow)}
+
+  /* ================== Layout adicional, filtros y modal ================== */
+  .toolbar{display:flex;gap:12px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
+  .search{background:var(--glass);padding:8px 12px;border-radius:999px;border:1px solid var(--glass-border);min-width:220px;color:inherit}
+  .filters{display:flex;gap:8px}
+  .chip{padding:8px 12px;border-radius:999px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.02);font-size:13px;color:var(--muted);cursor:pointer}
+  .chip.active{background:linear-gradient(90deg,var(--accent1-start),var(--accent1-end));color:white;border:none;box-shadow:0 10px 30px rgba(124,58,237,0.12)}
+
+  .modal{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(180deg, rgba(2,6,23,0.6), rgba(2,6,23,0.85));z-index:140;opacity:0;visibility:hidden;transition:opacity .18s, visibility .18s}
+  .modal.open{opacity:1;visibility:visible}
+  .modal-card{background:linear-gradient(180deg,#0b1220,#071026);padding:20px;border-radius:12px;border:1px solid rgba(255,255,255,0.03);width:720px;box-shadow:0 30px 80px rgba(2,6,23,0.7)}
+  .modal-card h3{margin:0 0 8px}
+  .modal-body{color:var(--muted);font-size:14px;line-height:1.5}
+
+  /* responsive ajustes finos */
+  @media (max-width:980px){
+    .hero-right{width:100%;min-width:0}
+    .hero{flex-direction:column;align-items:flex-start}
+  }
+  @media (max-width:560px){
+    body{padding:18px}
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M12 3L21 9L16 21H8L3 9L12 3Z" stroke="url(#g1)" stroke-width="1.2" stroke-linejoin="round"/><defs><linearGradient id="g1" x1="0" x2="1"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#06b6d4"/></linearGradient></defs></svg>
+        </div>
+        <div>
+          <h1>Casino</h1>
+          <p class="sub">Mini Juegos — Plataforma estilo moderno</p>
+        </div>
+      </div>
+
+      <div class="balance" title="Balance demo">
+        <div class="dot" aria-hidden="true"></div>
+        <div style="font-weight:800">0.524 BTC</div>
+        <div style="font-size:12px;color:var(--muted)">Balance</div>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="hero-left">
+        <div class="title">Mini Juegos</div>
+        <div class="subtitle">Seleccioná un mini juego y divertite. Diseño coherente con Mines — mismas fuentes, colores y comportamientos.</div>
+
+        <div class="toolbar" style="margin-top:18px">
+          <input class="search" id="searchInput" placeholder="Buscar juegos..." />
+          <div class="filters" role="tablist" aria-label="Filtros">
+            <div class="chip active" data-filter="all">Todos</div>
+            <div class="chip" data-filter="hot">Hot</div>
+            <div class="chip" data-filter="new">Nuevos</div>
+            <div class="chip" data-filter="cards">Cartas</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-right">
+        <div class="hero-img" aria-hidden="true">
+          <!-- placeholder SVG grande para peso y estética -->
+          <svg viewBox="0 0 600 300" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <linearGradient id="hg1" x1="0" x2="1"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#06b6d4"/></linearGradient>
+              <filter id="f1" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="18" result="b"/><feBlend in="SourceGraphic" in2="b"/></filter>
+            </defs>
+            <rect x="0" y="0" width="600" height="300" rx="18" fill="url(#hg1)" opacity="0.06"></rect>
+            <g filter="url(#f1)">
+              <circle cx="120" cy="80" r="50" fill="#7c3aed" opacity="0.12"/>
+              <circle cx="300" cy="40" r="30" fill="#06b6d4" opacity="0.12"/>
+              <circle cx="420" cy="140" r="70" fill="#7c3aed" opacity="0.08"/>
+            </g>
+            <g transform="translate(60,40)">
+              <text x="0" y="120" font-size="42" fill="#e6eef8" font-weight="800" font-family="Inter, sans-serif">CASINO</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="gamesTitle" style="margin-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px" class="games-wrap">
+        <div>
+          <div class="tag">Destacados</div>
+        </div>
+        <div style="color:var(--muted);font-size:13px">4 juegos — estilo unificado</div>
+      </div>
+
+      <div class="games-wrap">
+        <div class="games-grid" id="gamesGrid">
+          <!-- Card 1 -->
+          <article class="card-game" data-tags="hot,cards">
+            <div style="position:relative">
+              <div class="ribbon">TOP</div>
+              <div class="game-img" role="img" aria-label="MATEOIMG1.jpg">
+                <!-- Placeholder visual: ruta MATEOIMG1 -->
+                <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+                  <rect width="200" height="120" rx="10" fill="url(#g1)" opacity="0.06"/>
+                  <defs><linearGradient id="g1" x1="0" x2="1"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#06b6d4"/></linearGradient></defs>
+                  <g transform="translate(12,18)" fill="#e6eef8" opacity="0.95"><text x="0" y="40" font-size="24" font-weight="800" font-family="Inter, sans-serif">MATEOIMG1</text></g>
+                </svg>
+              </div>
+            </div>
+            <h3>Mini Juego 1 — Mines style</h3>
+            <div class="meta"><div class="tag">Mines</div><div style="color:var(--muted);font-size:13px">5x5 — Riesgo medio</div></div>
+            <p class="desc">Experimentá el clásico juego de minas con tablero 5x5. Lógica coherente con la versión principal: seleccionar minas, descubrir casillas y cobrar antes de explotar.</p>
+            <div class="controls">
+              <button class="btn" data-href="minas.html">Jugar</button>
+              <button class="btn secondary" data-action="info" data-title="Mini Juego 1" data-desc="Versión demo con tablero 5x5 y cashout.">Info</button>
+            </div>
+          </article>
+
+          <!-- Card 2 -->
+          <article class="card-game" data-tags="new">
+            <div style="position:relative">
+              <div class="game-img" role="img" aria-label="MATEOIMG2">
+                <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+                  <rect width="200" height="120" rx="10" fill="url(#g2)" opacity="0.06"/>
+                  <defs><linearGradient id="g2" x1="0" x2="1"><stop offset="0" stop-color="#06b6d4"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs>
+                  <g transform="translate(16,24)" fill="#e6eef8" opacity="0.95"><text x="0" y="40" font-size="24" font-weight="800" font-family="Inter, sans-serif">MATEOIMG2</text></g>
+                </svg>
+              </div>
+            </div>
+            <h3>Mini Juego 2 — Crash</h3>
+            <div class="meta"><div class="tag">Crash</div><div style="color:var(--muted);font-size:13px">Rápido — Alta volatilidad</div></div>
+            <p class="desc">Simula una ronda de Crash: sube el multiplicador y retirá a tiempo para ganar. Ideal para partidas rápidas y apuestas dinámicas.</p>
+            <div class="controls">
+              <button class="btn" data-href="plinko.html">Jugar</button>
+              <button class="btn secondary" data-action="info" data-title="Mini Juego 2" data-desc="Rondas rápidas con multiplicador creciente.">Info</button>
+            </div>
+          </article>
+
+          <!-- Card 3 -->
+          <article class="card-game" data-tags="cards,hot">
+            <div style="position:relative">
+              <div class="game-img" role="img" aria-label="MATEOIMG3">
+                <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+                  <rect width="200" height="120" rx="10" fill="url(#g3)" opacity="0.06"/>
+                  <defs><linearGradient id="g3" x1="0" x2="1"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#06b6d4"/></linearGradient></defs>
+                  <g transform="translate(16,28)" fill="#e6eef8" opacity="0.95"><text x="0" y="40" font-size="24" font-weight="800" font-family="Inter, sans-serif">MATEOIMG3</text></g>
+                </svg>
+              </div>
+            </div>
+            <h3>Mini Juego 3 — Plinko</h3>
+            <div class="meta"><div class="tag">Plinko</div><div style="color:var(--muted);font-size:13px">Casual — Gráficos</div></div>
+            <p class="desc">Dejá caer la ficha y observá dónde caíga — un clásico divertido. Cuanto más baja la casilla, mayor el premio.</p>
+            <div class="controls">
+              <button class="btn" data-href="blackjack.html">Jugar</button>
+              <button class="btn secondary" data-action="info" data-title="Mini Juego 3" data-desc="Plinko clásico con tabla de premios.">Info</button>
+            </div>
+          </article>
+
+          <!-- Card 4 -->
+          <article class="card-game" data-tags="cards">
+            <div style="position:relative">
+              <div class="game-img" role="img" aria-label="MATEOIMG4">
+                <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+                  <rect width="200" height="120" rx="10" fill="url(#g4)" opacity="0.06"/>
+                  <defs><linearGradient id="g4" x1="0" x2="1"><stop offset="0" stop-color="#06b6d4"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs>
+                  <g transform="translate(16,28)" fill="#e6eef8" opacity="0.95"><text x="0" y="40" font-size="24" font-weight="800" font-family="Inter, sans-serif">MATEOIMG4</text></g>
+                </svg>
+              </div>
+            </div>
+            <h3>Mini Juego 4 — Torre</h3>
+            <div class="meta"><div class="tag">Torre</div><div style="color:var(--muted);font-size:13px">Estrategia</div></div>
+            <p class="desc">Subí por la torre seleccionando niveles seguros. Cada nivel multiplica tu apuesta.</p>
+            <div class="controls">
+              <button class="btn" data-href="aviator.html">Jugar</button>
+              <button class="btn secondary" data-action="info" data-title="Mini Juego 4" data-desc="Torre escalable con apuestas progresivas.">Info</button>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <footer style="margin-top:34px;color:var(--muted);font-size:13px;text-align:center">
+      <div style="max-width:900px;margin:0 auto">Diseño coherente con <strong>Mines — Mini Juegos</strong>. Reemplazá <code>MATEOIMG1..4</code> por tus rutas de imagen reales y <code>MATEO1..4</code> por los archivos de juego.</div>
+    </footer>
+  </div>
+
+  <!-- modal -->
+  <div class="modal" id="modal">
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong id="modalTitle">Detalle</strong>
+        <button id="closeModal" class="btn secondary">Cerrar</button>
+      </div>
+      <div class="modal-body" id="modalBody" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+<script>
+  // Interactividad ligera para demo — aumenta peso y UX
+  const chips = Array.from(document.querySelectorAll('.chip'));
+  const gamesGrid = document.getElementById('gamesGrid');
+  const searchInput = document.getElementById('searchInput');
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modalBody');
+  const modalTitle = document.getElementById('modalTitle');
+  const closeModal = document.getElementById('closeModal');
+
+  // Filtrado por chips
+  chips.forEach(c=>c.addEventListener('click', ()=>{
+    chips.forEach(ch=>ch.classList.remove('active'));
+    c.classList.add('active');
+    const filter = c.dataset.filter;
+    filterGames(filter);
+  }));
+
+  // búsqueda en tiempo real
+  searchInput.addEventListener('input', ()=>{
+    const q = searchInput.value.trim().toLowerCase();
+    Array.from(gamesGrid.children).forEach(card => {
+      const title = card.querySelector('h3').innerText.toLowerCase();
+      const desc = card.querySelector('.desc').innerText.toLowerCase();
+      const show = !q || title.includes(q) || desc.includes(q);
+      card.style.display = show ? '' : 'none';
+    });
+  });
+
+  // botones play / info
+  document.querySelectorAll('.btn').forEach(btn => {
+    const href = btn.dataset.href;
+    const action = btn.dataset.action;
+    if(href){
+      btn.addEventListener('click', ()=>{ window.location.href = href });
+    } else if(action === 'info'){
+      btn.addEventListener('click', (e)=>{
+        const title = btn.dataset.title || 'Detalle';
+        const desc = btn.dataset.desc || '';
+        openModal(title, desc);
+      });
+    }
+  });
+
+  function filterGames(key){
+    Array.from(gamesGrid.children).forEach(card => {
+      const tags = (card.dataset.tags || '').split(',').map(t=>t.trim());
+      const show = key === 'all' ? true : tags.includes(key);
+      card.style.display = show ? '' : 'none';
+    });
+  }
+
+  function openModal(title, desc){
+    modalTitle.innerText = title;
+    modalBody.innerText = desc;
+    modal.classList.add('open');
+  }
+  closeModal.addEventListener('click', ()=> modal.classList.remove('open'));
+  document.addEventListener('keydown', e=>{ if(e.key === 'Escape') modal.classList.remove('open') });
+
+  // initial filter
+  filterGames('all');
+
+  // small decorative JS to create dynamic gradient movement (CSS-only would be lighter, but we keep small script)
+  (function animateBG(){
+    let t = 0;
+    const root = document.documentElement;
+    function frame(){
+      t += 0.0025;
+      const x = Math.sin(t) * 10;
+      const y = Math.cos(t * 1.1) * 6;
+      root.style.setProperty('--bg-pos-x', x + '%');
+      root.style.setProperty('--bg-pos-y', y + '%');
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  })();
+</script>
+
+<script>
+/* Admin-controlled balance injection (reads ./admin.json).
+   Default balance_ARS if missing: 1000
+   This script replaces visible BTC amounts (e.g. "0.524 BTC") in text nodes with "<amount> ARS".
+   Edit admin.json to change the balance for all pages at once.
+*/
+(function(){
+  function formatNumber(n){
+    try{ return new Intl.NumberFormat('es-AR').format(n); }catch(e){ return String(n); }
+  }
+  function applyBalance(bal){
+    // Replace exact occurrences of numbers followed by BTC inside leaf nodes
+    var btcRegex = /[\d\.,]+\s*BTC/;
+    var nodes = Array.prototype.slice.call(document.querySelectorAll('body *'));
+    nodes.forEach(function(el){
+      // Only consider elements without child elements (leaf nodes) to avoid breaking structure
+      if(el.children.length===0 && typeof el.textContent === 'string'){
+        if(btcRegex.test(el.textContent)){
+          el.textContent = el.textContent.replace(btcRegex, formatNumber(bal) + ' ARS');
+        }
+      }
+    });
+    // Also try some common ids/classes
+    var ids = ['balanceLabel','betLabel'];
+    ids.forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.textContent = formatNumber(bal) + ' ARS';
+    });
+    // Elements with class "balance" - update their numeric portion if present
+    Array.prototype.slice.call(document.querySelectorAll('.balance')).forEach(function(el){
+      if(typeof el.textContent === 'string' && btcRegex.test(el.textContent)){
+        el.textContent = el.textContent.replace(btcRegex, formatNumber(bal) + ' ARS');
+      } else {
+        var txt = el.textContent || '';
+        if(txt.indexOf('BTC')!==-1){
+          el.textContent = txt.replace(btcRegex, formatNumber(bal) + ' ARS');
+        }
+      }
+    });
+  }
+
+  // Fetch admin.json from same folder
+  fetch('./admin.json', {cache: 'no-store'}).then(function(r){
+    if(!r.ok) throw new Error('no admin.json');
+    return r.json();
+  }).then(function(cfg){
+    var bal = cfg && (typeof cfg.balance_ARS !== 'undefined') ? cfg.balance_ARS : 1000;
+    applyBalance(bal);
+  }).catch(function(err){
+    // If fetch fails, apply default 1000 ARS
+    applyBalance(1000);
+    console.warn('admin.json not found or failed to load — using default 1000 ARS', err);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aviator — Mini Juegos (Moderno SVG)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <!-- Minimal Bootstrap-like utilities via CDN for quick modern components -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0f1724;
+      --card:#0b1220;
+      --glass: rgba(255,255,255,0.04);
+      --muted: rgba(255,255,255,0.65);
+      --accent1: linear-gradient(90deg,#7c3aed,#06b6d4);
+      --accent2: linear-gradient(90deg,#f59e0b,#ef4444);
+      --success:#10b981;
+      --danger:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+      background:
+        radial-gradient(800px 400px at 10% 10%, rgba(124,58,237,0.06), transparent 10%),
+        radial-gradient(700px 350px at 90% 80%, rgba(6,182,212,0.04), transparent 10%),
+        var(--bg);
+      color:#e6eef8;
+      -webkit-font-smoothing:antialiased;
+      padding:28px;
+    }
+    .container-max{max-width:1120px;margin:0 auto}
+    .card-glass{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.04);
+      box-shadow:0 18px 60px rgba(2,6,23,0.6);
+    }
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#071025,#0b1220);display:grid;place-items:center;border:1px solid rgba(255,255,255,0.03)}
+    h1{font-size:18px;margin:0}
+    p.sub{margin:0;color:var(--muted);font-size:13px}
+
+    main{display:grid;grid-template-columns:1fr 360px;gap:22px;align-items:start}
+
+    .visual{
+      width:100%;height:480px;border-radius:12px;padding:18px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));border:1px solid rgba(255,255,255,0.02);position:relative;overflow:hidden;
+      display:flex;flex-direction:column;justify-content:flex-end;
+    }
+
+    /* Sky background grid */
+    .sky{
+      position:absolute;inset:0;background:
+        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00));
+      pointer-events:none;
+    }
+
+    /* airplane stage */
+    .runway{
+      position:relative;width:100%;height:100%;overflow:visible;
+    }
+
+    /* plane container */
+    .plane{
+      position:absolute;left:8%;bottom:8%;width:92px;height:48px;transform-origin:center center;
+      transition:transform .12s linear;
+      will-change:transform, left, bottom;
+      z-index:40;
+    }
+
+    /* trail */
+    .trail {
+      position:absolute;left:0;top:0;width:120%;height:200px;pointer-events:none;opacity:0.85;
+      filter: blur(8px) saturate(1.1);
+    }
+
+    .mult-display{
+      position:absolute;top:18px;left:18px;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);font-weight:800;font-size:20px;
+    }
+    .meter{
+      position:absolute;right:18px;top:18px;width:70px;height:360px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));border:1px solid rgba(255,255,255,0.02);display:flex;align-items:flex-end;padding:6px;
+    }
+    .meter-fill{width:100%;border-radius:8px;background:linear-gradient(180deg,#22c55e,#f97316);height:0;transition:height .12s linear;box-shadow:0 8px 24px rgba(34,197,94,0.06);}
+
+    .timeline{
+      position:absolute;left:18px;bottom:18px;right:18px;height:80px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));border:1px solid rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted)
+    }
+
+    .panel .stat{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:10px;margin-bottom:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.02)}
+    .small{color:var(--muted);font-size:13px}
+
+    .btn-primary{
+      background:linear-gradient(90deg,#7c3aed,#06b6d4);border:none;color:white;font-weight:700;
+    }
+    .btn-warn{
+      background:linear-gradient(90deg,#f59e0b,#ef4444);border:none;color:white;font-weight:700;
+    }
+
+    /* responsive */
+    @media (max-width:980px){
+      main{grid-template-columns:1fr}
+      .visual{height:420px}
+      .meter{display:none}
+    }
+
+    /* plane SVG styling */
+    svg.plane-svg{width:100%;height:100%}
+    /* subtle glow when cashout */
+    .glow {
+      position:absolute;left:0;top:0;right:0;bottom:0;border-radius:12px;pointer-events:none;mix-blend-mode:screen;opacity:0;transition:opacity .3s;
+    }
+    .glow.show{opacity:1;background:radial-gradient(circle at 20% 30%, rgba(124,58,237,0.12), transparent 10%), radial-gradient(circle at 80% 70%, rgba(6,182,212,0.08), transparent 8%);}
+  </style>
+</head>
+<body>
+  <div class="container-max">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 3L21 9L16 21H8L3 9L12 3Z" stroke="url(#g1)" stroke-width="1.2" stroke-linejoin="round"/><defs><linearGradient id="g1" x1="0" x2="1"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#06b6d4"/></linearGradient></defs></svg>
+        </div>
+        <div>
+          <h1>Aviator — Mini Juegos</h1>
+          <p class="sub">Apuesta, observa el avión elevarse y haz cashout antes de que desaparezca.</p>
+        </div>
+      </div>
+
+      <div class="d-flex align-items-center">
+        <div class="me-2" style="background:rgba(255,255,255,0.02);padding:8px 12px;border-radius:999px;border:1px solid rgba(255,255,255,0.03);display:flex;gap:8px;align-items:center">
+          <div style="width:10px;height:10px;border-radius:50%;background:linear-gradient(90deg,#34d399,#10b981)"></div>
+          <div style="font-weight:700">0.524 BTC</div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="card-glass">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div>
+            <h2 style="margin:0;font-size:16px">Aviator — Crash Game</h2>
+            <div class="small mt-1">Selecciona apuesta, velocidad visual y comienza la ronda.</div>
+          </div>
+
+          <div class="d-flex align-items-center gap-2">
+            <input id="betInput" class="form-control form-control-sm" style="width:120px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);color:inherit" type="number" step="0.0001" min="0.0001" value="0.01">
+            <select id="speed" class="form-select form-select-sm" style="width:120px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);color:inherit">
+              <option value="1">Normal</option>
+              <option value="0.7">Rápido</option>
+              <option value="1.4">Lento</option>
+            </select>
+            <button id="startBtn" class="btn btn-sm btn-primary btn-primary">Iniciar</button>
+          </div>
+        </div>
+
+        <div class="visual" id="visual">
+          <div class="mult-display" id="displayMult">x1.00</div>
+
+          <div class="runway" id="runway">
+            <!-- SVG plane and trail (modern vector) -->
+            <div class="plane" id="plane">
+              <svg class="plane-svg" viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <!-- stylized modern airplane -->
+                <defs>
+                  <linearGradient id="planeGrad" x1="0" x2="1"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#06b6d4"/></linearGradient>
+                  <linearGradient id="trailGrad" x1="0" x2="1"><stop offset="0" stop-color="rgba(124,58,237,0.28)"/><stop offset="1" stop-color="rgba(6,182,212,0.12)"/></linearGradient>
+                </defs>
+
+                <!-- trail path -->
+                <path id="trailPath" d="M10 60 C60 50, 120 40, 180 10" fill="none" stroke="url(#trailGrad)" stroke-width="14" stroke-linecap="round" opacity="0.75"/>
+
+                <!-- plane group -->
+                <g id="planeShape" transform="translate(0,0)">
+                  <ellipse cx="30" cy="50" rx="26" ry="10" fill="url(#planeGrad)" opacity="0.95"/>
+                  <polygon points="52,50 80,44 80,56" fill="#0b1220" opacity="0.9"/>
+                  <rect x="20" y="44" width="18" height="12" rx="2" ry="2" fill="#071026" opacity="0.9"/>
+                  <circle cx="22" cy="60" r="2.6" fill="#071026" />
+                  <!-- wing -->
+                  <path d="M18 46 L44 36 L46 42 L24 50 Z" fill="#0b1220" opacity="0.9"/>
+                </g>
+              </svg>
+            </div>
+
+            <!-- trail overlay for glow -->
+            <svg class="trail" viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg" style="pointer-events:none;position:absolute;left:-10%;top:-20%;">
+              <defs>
+                <linearGradient id="gtrail" x1="0" x2="1"><stop offset="0" stop-color="#7c3aed" stop-opacity="0.16"/><stop offset="1" stop-color="#06b6d4" stop-opacity="0.06"/></linearGradient>
+              </defs>
+              <path d="M10 60 C60 50, 120 40, 180 10" fill="none" stroke="url(#gtrail)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </div>
+
+          <div class="meter" aria-hidden="true">
+            <div class="meter-fill" id="meterFill" style="height:0%"></div>
+          </div>
+
+          <div class="timeline" id="timeline">Estado: Inactivo</div>
+          <div class="glow" id="glow"></div>
+        </div>
+
+        <div class="d-flex gap-3 mt-3">
+          <div style="flex:1" class="card-glass">
+            <div class="panel">
+              <h5 style="margin:0 0 8px">Panel</h5>
+              <div class="stat"><div class="small">Estado</div><strong id="stateLabel">Inactivo</strong></div>
+              <div class="stat"><div class="small">Apuesta</div><strong id="betLabel">-</strong></div>
+              <div class="stat"><div class="small">Multiplicador</div><strong id="multLabel">x1.00</strong></div>
+              <div class="stat"><div class="small">Payout</div><strong id="payoutLabel">-</strong></div>
+
+              <div class="d-flex gap-2 mt-2">
+                <button id="cashoutBtn" class="btn btn-sm btn-warn" style="flex:1" disabled>Cashout</button>
+                <button id="resetBtn" class="btn btn-sm btn-outline-secondary" style="flex:1">Reiniciar</button>
+              </div>
+
+              <div class="small mt-3">Historial</div>
+              <div id="lastResult" class="small text-muted" style="margin-top:6px">Sin historial</div>
+              <div class="small mt-3">Mejor</div>
+              <div id="bestLabel" class="small text-muted" style="margin-top:6px">—</div>
+            </div>
+          </div>
+
+          <aside style="width:260px" class="card-glass">
+            <div class="panel">
+              <h6 style="margin-top:0">Ayuda rápida</h6>
+              <p class="small">• El avión asciende y el multiplicador sube. Pulsa <strong>Cashout</strong> antes del crash. • Velocidad solo afecta la animación visual.</p>
+              <h6 style="margin-top:12px">Algoritmo</h6>
+              <p class="small">La simulación usa una distribución aleatoria para generar crashes — juego de diseño.</p>
+              <div class="small mt-3">Última actualización: 06 Oct 2025</div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- modal -->
+  <div class="modal" id="modal" tabindex="-1" aria-hidden="true" style="display:none;position:fixed;inset:0;z-index:1200;align-items:center;justify-content:center;background:rgba(2,6,23,0.65)">
+    <div class="card-glass" style="width:520px;max-width:94%">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong id="modalTitle">Resultado</strong>
+        <button id="modalClose" class="btn btn-sm btn-outline-secondary">Cerrar</button>
+      </div>
+      <div id="modalBody" style="margin-top:12px;color:var(--muted)"></div>
+    </div>
+  </div>
+
+<script>
+  // Elements
+  const startBtn = document.getElementById('startBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const cashoutBtn = document.getElementById('cashoutBtn');
+  const betInput = document.getElementById('betInput');
+  const speedSel = document.getElementById('speed');
+  const stateLabel = document.getElementById('stateLabel');
+  const betLabel = document.getElementById('betLabel');
+  const multLabel = document.getElementById('multLabel');
+  const payoutLabel = document.getElementById('payoutLabel');
+  const lastResult = document.getElementById('lastResult');
+  const bestLabel = document.getElementById('bestLabel');
+  const displayMult = document.getElementById('displayMult');
+  const plane = document.getElementById('plane');
+  const meterFill = document.getElementById('meterFill');
+  const timeline = document.getElementById('timeline');
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modalBody');
+  const modalClose = document.getElementById('modalClose');
+  const glow = document.getElementById('glow');
+
+  let playing = false;
+  let bet = 0;
+  let currentMult = 1;
+  let crashPoint = 0;
+  let intervalId = null;
+  let best = localStorage.getItem('aviator_best') || '-';
+
+  bestLabel.innerText = best === '-' ? '—' : 'x' + parseFloat(best).toFixed(2);
+
+  function formatBTC(x){ return parseFloat(x).toFixed(4); }
+  function updatePanel(){
+    betLabel.innerText = bet ? `${formatBTC(bet)} BTC` : '-';
+    multLabel.innerText = `x${currentMult.toFixed(2)}`;
+    payoutLabel.innerText = bet ? `${formatBTC(bet * currentMult)} BTC` : '-';
+    stateLabel.innerText = playing ? 'En juego' : 'Inactivo';
+    cashoutBtn.disabled = !playing;
+    cashoutBtn.classList.toggle('disabled', !playing);
+    displayMult.innerText = `x${currentMult.toFixed(2)}`;
+  }
+
+  // Generate crash using a skewed distribution for variety
+  function generateCrash(){
+    const r = Math.random();
+    // sharpen distribution to favor small multipliers but allow occasional big ones
+    const crash = 1 + Math.pow(1/(1-r), 0.6) * 0.02 + r*2.2;
+    return Math.min(crash, 500);
+  }
+
+  function startRound(){
+    bet = parseFloat(betInput.value);
+    if(!bet || bet <= 0){ alert('Ingresa una apuesta válida.'); return; }
+    if(playing) return;
+    playing = true;
+    currentMult = 1;
+    crashPoint = generateCrash();
+    const speed = parseFloat(speedSel.value) || 1;
+    updatePanel();
+    timeline.innerText = 'Ronda en curso...';
+    lastResult.innerText = 'Jugando...';
+    meterFill.style.height = '0%';
+    glow.classList.remove('show');
+
+    // Move plane along a Bezier path visually according to multiplier
+    const startTime = performance.now();
+    const visualDuration = 8500 * (1/speed); // overall visual time scale
+    intervalId = setInterval(()=>{
+      const t = (performance.now() - startTime) / visualDuration; // 0..inf
+      // growth curve
+      currentMult = 1 + Math.min( Math.exp(t*2) - 1, crashPoint*1.02 );
+      // compute normalized progress to move plane along curve
+      const progress = Math.min(1, Math.log10(currentMult + 1) / Math.log10(crashPoint + 1));
+      // update plane position along a curve from bottom-left to top-right
+      const runway = document.getElementById('runway');
+      const w = runway.clientWidth, h = runway.clientHeight;
+      // cubic bezier coords
+      const x = bezier(progress, 0.08, 0.25, 0.7, 0.92) * (w - 120);
+      const y = (1 - bezier(progress, 0.92, 0.6, 0.35, 0.12)) * (h - 60);
+      plane.style.left = (8 + x/(w)*84) + '%'; // percent
+      plane.style.bottom = (8 + (y/(h))*60) + '%';
+      plane.style.transform = `rotate(${progress * 30}deg) scale(${1 + progress*0.25})`;
+
+      // meter visual (log scale)
+      const pct = Math.min(98, Math.log10(currentMult + 1) / Math.log10(crashPoint + 1) * 100);
+      meterFill.style.height = pct + '%';
+      updatePanel();
+
+      // small per-tick crash chance increases
+      const chance = (currentMult / crashPoint) * 0.015;
+      if(currentMult >= crashPoint || Math.random() < chance){
+        // crash
+        crashNow();
+      }
+    }, 75);
+  }
+
+  function bezier(t, p0, p1, p2, p3){
+    // cubic bezier evaluation (0..1)
+    const u = 1 - t;
+    return (u*u*u*p0) + (3*u*u*t*p1) + (3*u*t*t*p2) + (t*t*t*p3);
+  }
+
+  function crashNow(){
+    if(!playing) return;
+    clearInterval(intervalId);
+    playing = false;
+    currentMult = crashPoint;
+    updatePanel();
+    // plane explosion visual
+    plane.style.transition = 'transform .35s ease, opacity .35s ease';
+    plane.style.transform += ' scale(1.6)';
+    plane.style.opacity = '0';
+    timeline.innerText = `Crash en x${crashPoint.toFixed(2)} — Has perdido`;
+    lastResult.innerText = `Crash x${crashPoint.toFixed(2)} (Perdiste ${formatBTC(bet)} BTC)`;
+    // small delay to show explosion modal
+    setTimeout(()=>{
+      openModalLose();
+      // reset plane after animation
+      plane.style.transition = 'none';
+      plane.style.opacity = '1';
+      plane.style.transform = 'translateY(0) rotate(0deg) scale(1)';
+      plane.style.left = '8%';
+      plane.style.bottom = '8%';
+      meterFill.style.height = '0%';
+    }, 600);
+  }
+
+  function cashout(){
+    if(!playing) return;
+    clearInterval(intervalId);
+    playing = false;
+    const payout = bet * currentMult;
+    timeline.innerText = `Cashout en x${currentMult.toFixed(2)} — Cobras ${formatBTC(payout)} BTC`;
+    lastResult.innerText = `Cashout x${currentMult.toFixed(2)} → ${formatBTC(payout)} BTC`;
+    // show glow and small celebration
+    glow.classList.add('show');
+    setTimeout(()=> glow.classList.remove('show'), 900);
+    if(best === '-' || currentMult > parseFloat(best)){
+      best = currentMult.toFixed(2);
+      localStorage.setItem('aviator_best', best);
+      bestLabel.innerText = 'x' + parseFloat(best).toFixed(2);
+    }
+    openModalWin(payout);
+    // reset plane pos
+    plane.style.transition = 'transform .35s ease, left .35s ease, bottom .35s ease';
+    plane.style.left = '8%';
+    plane.style.bottom = '8%';
+    plane.style.transform = 'rotate(0deg) scale(1)';
+    meterFill.style.height = '0%';
+    updatePanel();
+  }
+
+  function openModalWin(payout){
+    modalBody.innerHTML = `<div style="font-size:18px;margin-bottom:8px">¡Cashout exitoso! 🎉</div>
+      <div style="color:var(--muted)">Has retirado <strong>${formatBTC(payout)} BTC</strong></div>`;
+    showModal();
+  }
+  function openModalLose(){
+    modalBody.innerHTML = `<div style="font-size:18px;margin-bottom:8px">Has explotado 💥</div>
+      <div style="color:var(--muted)">Crash en <strong>x${crashPoint.toFixed(2)}</strong>. Perdiste la apuesta de <strong>${formatBTC(bet)} BTC</strong></div>`;
+    showModal();
+  }
+
+  function showModal(){ modal.style.display='flex'; setTimeout(()=> modal.style.opacity='1',20) }
+  function closeModal(){ modal.style.opacity='0'; setTimeout(()=> modal.style.display='none',220) }
+
+  function resetAll(){
+    if(intervalId) clearInterval(intervalId);
+    playing = false;
+    currentMult = 1;
+    crashPoint = 0;
+    bet = 0;
+    betInput.value = '0.01';
+    meterFill.style.height = '0%';
+    timeline.innerText = 'Inactivo';
+    lastResult.innerText = 'Sin historial';
+    updatePanel();
+    plane.style.left = '8%';
+    plane.style.bottom = '8%';
+    plane.style.opacity = '1';
+    plane.style.transform = 'rotate(0deg) scale(1)';
+  }
+
+  // attach events
+  startBtn.addEventListener('click', startRound);
+  cashoutBtn.addEventListener('click', cashout);
+  resetBtn.addEventListener('click', resetAll);
+  modalClose.addEventListener('click', closeModal);
+
+  // initial update
+  updatePanel();
+</script>
+
+<script>
+/* Admin-controlled balance injection (reads ./admin.json).
+   Default balance_ARS if missing: 1000
+   This script replaces visible BTC amounts (e.g. "0.524 BTC") in text nodes with "<amount> ARS".
+   Edit admin.json to change the balance for all pages at once.
+*/
+(function(){
+  function formatNumber(n){
+    try{ return new Intl.NumberFormat('es-AR').format(n); }catch(e){ return String(n); }
+  }
+  function applyBalance(bal){
+    // Replace exact occurrences of numbers followed by BTC inside leaf nodes
+    var btcRegex = /[\d\.,]+\s*BTC/;
+    var nodes = Array.prototype.slice.call(document.querySelectorAll('body *'));
+    nodes.forEach(function(el){
+      // Only consider elements without child elements (leaf nodes) to avoid breaking structure
+      if(el.children.length===0 && typeof el.textContent === 'string'){
+        if(btcRegex.test(el.textContent)){
+          el.textContent = el.textContent.replace(btcRegex, formatNumber(bal) + ' ARS');
+        }
+      }
+    });
+    // Also try some common ids/classes
+    var ids = ['balanceLabel','betLabel'];
+    ids.forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.textContent = formatNumber(bal) + ' ARS';
+    });
+    // Elements with class "balance" - update their numeric portion if present
+    Array.prototype.slice.call(document.querySelectorAll('.balance')).forEach(function(el){
+      if(typeof el.textContent === 'string' && btcRegex.test(el.textContent)){
+        el.textContent = el.textContent.replace(btcRegex, formatNumber(bal) + ' ARS');
+      } else {
+        var txt = el.textContent || '';
+        if(txt.indexOf('BTC')!==-1){
+          el.textContent = txt.replace(btcRegex, formatNumber(bal) + ' ARS');
+        }
+      }
+    });
+  }
+
+  // Fetch admin.json from same folder
+  fetch('./admin.json', {cache: 'no-store'}).then(function(r){
+    if(!r.ok) throw new Error('no admin.json');
+    return r.json();
+  }).then(function(cfg){
+    var bal = cfg && (typeof cfg.balance_ARS !== 'undefined') ? cfg.balance_ARS : 1000;
+    applyBalance(bal);
+  }).catch(function(err){
+    // If fetch fails, apply default 1000 ARS
+    applyBalance(1000);
+    console.warn('admin.json not found or failed to load — using default 1000 ARS', err);
+  });
+})();
+</script>
+</body>
+</html>

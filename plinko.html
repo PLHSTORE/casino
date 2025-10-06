@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Plinko 2D — Anti-atascos & Click ilimitado</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f1724;
+    --card:#0b1220;
+    --glass: rgba(255,255,255,0.04);
+    --glass-2: rgba(255,255,255,0.03);
+    --glass-border: rgba(255,255,255,0.06);
+    --muted: rgba(255,255,255,0.65);
+    --accent1-start:#7c3aed;
+    --accent1-end:#06b6d4;
+    --accent2-start:#f59e0b;
+    --accent2-end:#ef4444;
+    --success:#10b981;
+    --danger:#ef4444;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    background:
+      radial-gradient(800px 400px at 10% 10%, rgba(124,58,237,0.06), transparent 10%),
+      radial-gradient(700px 350px at 90% 80%, rgba(6,182,212,0.04), transparent 10%),
+      var(--bg);
+    color:#e6eef8;
+    -webkit-font-smoothing:antialiased;
+    padding:28px;
+  }
+  .container{max-width:1200px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#071025,#0b1220);display:grid;place-items:center;border:1px solid rgba(255,255,255,0.03)}
+  h1{font-size:18px;margin:0}
+  p.sub{margin:0;color:var(--muted);font-size:13px}
+
+  main{display:grid;grid-template-columns:1fr 360px;gap:22px;align-items:start}
+  @media (max-width:980px){ main{grid-template-columns:1fr} }
+
+  /* Game card */
+  .game-card{
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius:16px;padding:18px;border:1px solid var(--glass-border);
+    box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+  }
+  .top-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .select, .input { background:var(--glass);border:1px solid var(--glass-border);padding:10px 12px;border-radius:10px;color:inherit; }
+  .btn{ padding:10px 14px;border-radius:10px;border:none;background:linear-gradient(90deg,var(--accent1-start),var(--accent1-end)); color:white;font-weight:700;cursor:pointer;box-shadow:0 8px 30px rgba(124,58,237,0.14); }
+  .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);box-shadow:none;color:var(--muted)}
+  .btn.warn{background:linear-gradient(90deg,var(--accent2-start),var(--accent2-end));box-shadow:0 8px 30px rgba(245,158,11,0.12)}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+
+  .stage{
+    width:100%;
+    background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+    border:1px solid rgba(255,255,255,0.03);
+    border-radius:14px;
+    height:640px;
+    position:relative;
+    overflow:hidden;
+  }
+  #c{width:100%;height:100%}
+
+  /* Right panel */
+  .panel{
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius:16px;padding:18px;border:1px solid var(--glass-border);height:100%;
+    position:sticky;top:28px;
+  }
+  .stat{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:10px;margin-bottom:8px;background:var(--glass-2);border:1px solid rgba(255,255,255,0.02)}
+  .stat strong{font-size:16px}
+  .small{color:var(--muted);font-size:13px}
+  .bins{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:12px}
+  .bin{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);padding:8px 6px;border-radius:8px;text-align:center;font-size:12px;color:var(--muted)}
+  .bin.highlight{background:linear-gradient(90deg,var(--accent1-start),var(--accent1-end));color:white;border:none}
+
+  .history{margin-top:12px}
+  .history-item{display:flex;justify-content:space-between;gap:8px;padding:8px;border-radius:10px;background:var(--glass-2);border:1px solid rgba(255,255,255,0.02);margin-bottom:6px;font-size:13px}
+  .footer-note{margin-top:12px;color:var(--muted);font-size:13px;text-align:center}
+
+  /* modal */
+  .modal{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(180deg, rgba(2,6,23,0.6), rgba(2,6,23,0.85));z-index:70;opacity:0;visibility:hidden;transition:opacity .18s, visibility .18s}
+  .modal.open{opacity:1;visibility:visible}
+  .modal-card{background:linear-gradient(180deg,#0b1220,#071026);padding:20px;border-radius:12px;border:1px solid rgba(255,255,255,0.03);width:540px;box-shadow:0 30px 80px rgba(2,6,23,0.7)}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 3L21 9L16 21H8L3 9L12 3Z" stroke="url(#g1)" stroke-width="1.2" stroke-linejoin="round"/><defs><linearGradient id="g1" x1="0" x2="1"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#06b6d4"/></linearGradient></defs></svg>
+      </div>
+      <div>
+        <h1>Plinko 2D — Anti-atascos</h1>
+        <p class="sub">Canvas 2D con rebotes realistas, sin atascos, y clics ilimitados (una bola por clic).</p>
+      </div>
+    </div>
+    <div class="controls">
+      <div style="background:var(--glass);padding:8px 12px;border-radius:999px;border:1px solid var(--glass-border);display:flex;gap:8px;align-items:center">
+        <div style="width:10px;height:10px;border-radius:50%;background:linear-gradient(90deg,#34d399,#10b981)"></div>
+        <div style="font-weight:700">0.524 BTC</div>
+        <div style="font-size:12px;color:var(--muted)">Balance</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="game-card" aria-labelledby="gameTitle">
+      <div class="top-row">
+        <div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <h2 id="gameTitle" style="margin:0;font-size:16px">Plinko — 2D</h2>
+            <div class="small" style="margin-left:6px">12–16 filas</div>
+          </div>
+          <div class="small" style="margin-top:6px">Soltá una bola por clic; podés cliquear varias veces seguido. Todas terminan en un multiplicador.</div>
+        </div>
+
+        <div class="controls">
+          <select id="rowsSelect" class="select" title="Filas">
+            <option value="12">12 filas</option>
+            <option value="13">13 filas</option>
+            <option value="14">14 filas</option>
+            <option value="15">15 filas</option>
+            <option value="16" selected>16 filas</option>
+          </select>
+          <select id="riskSelect" class="select" title="Riesgo">
+            <option value="low">Riesgo bajo</option>
+            <option value="medium" selected>Riesgo medio</option>
+            <option value="high">Riesgo alto</option>
+          </select>
+          <input id="betInput" class="input" type="number" min="0.0001" step="0.0001" value="0.01" title="Apuesta (BTC)" />
+          <button id="dropBtn" class="btn">Soltar (1)</button>
+          <button id="autoBtn" class="btn ghost">Auto</button>
+        </div>
+      </div>
+
+      <div id="stage" class="stage">
+        <canvas id="c"></canvas>
+      </div>
+    </section>
+
+    <aside>
+      <div class="panel" aria-labelledby="panelTitle">
+        <h3 id="panelTitle" style="margin:0 0 8px">Panel</h3>
+        <div class="stat"><div class="small">Estado</div><strong id="stateLabel">Listo</strong></div>
+        <div class="stat"><div class="small">Apuesta</div><strong id="betLabel">0.0100 BTC</strong></div>
+        <div class="stat"><div class="small">Filas</div><strong id="rowsLabel">16</strong></div>
+        <div class="stat"><div class="small">Riesgo</div><strong id="riskLabel">Medio</strong></div>
+        <div class="stat"><div class="small">Resultado (última)</div><strong id="resultLabel">-</strong></div>
+        <div class="stat"><div class="small">Pago (última)</div><strong id="payoutLabel">-</strong></div>
+
+        <h4 style="margin:12px 0 6px">Multiplicadores</h4>
+        <div id="binsWrap" class="bins"></div>
+
+        <div class="history">
+          <h4 style="margin:12px 0 6px">Historial</h4>
+          <div id="history"></div>
+        </div>
+        <div class="footer-note">Físicas simplificadas. Anti-atascos: nudge, atracción a bin y límites seguros.</div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<!-- modal -->
+<div class="modal" id="modal">
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div style="display:flex;justify-content:space-between;align-items:center"><strong id="modalTitle">Resultado</strong><button onclick="closeModal()" class="btn ghost">Cerrar</button></div>
+    <div id="modalBody" style="margin-top:12px;color:var(--muted)"></div>
+  </div>
+</div>
+
+<script>
+// ======= UI state =======
+const rowsSelect = document.getElementById('rowsSelect');
+const riskSelect = document.getElementById('riskSelect');
+const betInput = document.getElementById('betInput');
+const dropBtn = document.getElementById('dropBtn');
+const autoBtn = document.getElementById('autoBtn');
+const stateLabel = document.getElementById('stateLabel');
+const betLabel = document.getElementById('betLabel');
+const rowsLabel = document.getElementById('rowsLabel');
+const riskLabel = document.getElementById('riskLabel');
+const resultLabel = document.getElementById('resultLabel');
+const payoutLabel = document.getElementById('payoutLabel');
+const binsWrap = document.getElementById('binsWrap');
+const historyEl = document.getElementById('history');
+const modal = document.getElementById('modal');
+const modalBody = document.getElementById('modalBody');
+
+let autoMode = false;
+let autoTimer = null;
+let clickCount = 0;
+
+// Multipliers (illustrative)
+const MULTS = {
+  low: {
+    12: [0.3,0.6,0.9,1.1,1.3,1.8,1.8,1.3,1.1,0.9,0.6,0.3],
+    13: [0.3,0.6,0.9,1.1,1.3,1.7,2.0,1.7,1.3,1.1,0.9,0.6,0.3],
+    14: [0.3,0.6,0.9,1.1,1.3,1.6,2.1,2.1,1.6,1.3,1.1,0.9,0.6,0.3],
+    15: [0.3,0.6,0.9,1.1,1.2,1.6,2.2,2.4,2.2,1.6,1.2,1.1,0.9,0.6,0.3],
+    16: [0.3,0.5,0.9,1.0,1.2,1.5,2.0,2.6,2.6,2.0,1.5,1.2,1.0,0.9,0.5,0.3],
+  },
+  medium: {
+    12: [0.2,0.5,0.8,1.0,1.2,2.0,2.0,1.2,1.0,0.8,0.5,0.2],
+    13: [0.2,0.5,0.8,1.0,1.2,1.7,2.6,1.7,1.2,1.0,0.8,0.5,0.2],
+    14: [0.2,0.5,0.8,1.0,1.2,1.6,3.0,3.0,1.6,1.2,1.0,0.8,0.5,0.2],
+    15: [0.2,0.5,0.8,1.0,1.1,1.6,3.2,3.6,3.2,1.6,1.1,1.0,0.8,0.5,0.2],
+    16: [0.2,0.5,0.8,1.0,1.1,1.5,2.8,4.0,4.0,2.8,1.5,1.1,1.0,0.8,0.5,0.2],
+  },
+  high: {
+    12: [0.1,0.3,0.6,0.9,1.1,3.2,3.2,1.1,0.9,0.6,0.3,0.1],
+    13: [0.1,0.3,0.6,0.9,1.1,2.4,5.0,2.4,1.1,0.9,0.6,0.3,0.1],
+    14: [0.1,0.3,0.6,0.9,1.0,2.0,6.0,6.0,2.0,1.0,0.9,0.6,0.3,0.1],
+    15: [0.1,0.3,0.6,0.9,1.0,1.8,7.0,8.0,7.0,1.8,1.0,0.9,0.6,0.3,0.1],
+    16: [0.1,0.3,0.6,0.9,1.0,1.7,6.5,10.0,10.0,6.5,1.7,1.0,0.9,0.6,0.3,0.1],
+  }
+};
+
+function updateUIFromControls(){
+  const rows = parseInt(rowsSelect.value,10);
+  const risk = riskSelect.value;
+  rowsLabel.textContent = rows;
+  riskLabel.textContent = risk === 'low' ? 'Bajo' : (risk==='medium'?'Medio':'Alto');
+  const bet = parseFloat(betInput.value)||0;
+  betLabel.textContent = `${bet.toFixed(4)} BTC`;
+  renderBins(MULTS[risk][rows]);
+}
+function renderBins(arr){
+  binsWrap.innerHTML = '';
+  const gridCols = Math.min(8, arr.length);
+  binsWrap.style.gridTemplateColumns = `repeat(${gridCols}, 1fr)`;
+  arr.forEach((m,i)=>{
+    const el = document.createElement('div');
+    el.className = 'bin';
+    el.dataset.index = i;
+    el.textContent = `x${m.toFixed(2)}`;
+    binsWrap.appendChild(el);
+  });
+}
+function highlightBin(i){
+  document.querySelectorAll('.bin').forEach(b=>b.classList.remove('highlight'));
+  const sel = document.querySelector(`.bin[data-index="${i}"]`);
+  if(sel) sel.classList.add('highlight');
+}
+function pushHistory(mult, payout){
+  const el = document.createElement('div');
+  el.className = 'history-item';
+  el.innerHTML = `<div>x${mult.toFixed(2)}</div><div><strong>${payout.toFixed(4)} BTC</strong></div>`;
+  historyEl.prepend(el);
+}
+
+function openModal(msg){ modal.classList.add('open'); modalBody.innerHTML = msg; }
+function closeModal(){ modal.classList.remove('open'); }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
+
+rowsSelect.addEventListener('change', ()=>{ rebuildGeometry(); updateUIFromControls(); });
+riskSelect.addEventListener('change', ()=>{ updateUIFromControls(); });
+betInput.addEventListener('input', ()=>{ updateUIFromControls(); });
+
+dropBtn.addEventListener('click', ()=>{
+  spawnBall();
+  clickCount++; dropBtn.textContent = `Soltar (${clickCount})`;
+  setTimeout(()=>{ clickCount=Math.max(0,clickCount-1); dropBtn.textContent = `Soltar (${clickCount})`; }, 800);
+});
+autoBtn.addEventListener('click', ()=>{
+  autoMode = !autoMode;
+  autoBtn.textContent = autoMode ? 'Auto: ON' : 'Auto';
+  if(autoMode && !autoTimer){
+    autoTimer = setInterval(()=> spawnBall(), 220);
+  } else if(!autoMode && autoTimer){
+    clearInterval(autoTimer); autoTimer = null;
+  }
+});
+
+// ======= Canvas setup =======
+const stage = document.getElementById('stage');
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let DPR = Math.min(2, window.devicePixelRatio || 1);
+let W = 0, H = 0;
+
+function resize(){
+  W = stage.clientWidth;
+  H = stage.clientHeight;
+  canvas.width = Math.floor(W * DPR);
+  canvas.height = Math.floor(H * DPR);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  rebuildGeometry();
+}
+window.addEventListener('resize', resize);
+
+// ======= Plinko geometry =======
+const geom = {
+  rows: 16,
+  rowGap: 34,
+  colGap: 34,
+  topY: 80,
+  pegs: [],
+  binLineY: 0,
+  bins: [],
+  leftWall: 0,
+  rightWall: 0
+};
+
+function rebuildGeometry(){
+  const rows = parseInt(rowsSelect.value, 10);
+  geom.rows = rows;
+  const margin = 40;
+  const usableW = W - margin*2;
+  geom.colGap = Math.min(42, Math.max(26, usableW / (rows+1)));
+  geom.rowGap = Math.min(44, Math.max(28, (H-220)/ (rows+2)));
+  geom.topY = 60;
+  geom.pegs = [];
+  for(let r=0;r<rows;r++){
+    const cols = r+1;
+    const y = geom.topY + r*geom.rowGap;
+    const rowWidth = (cols-1)*geom.colGap;
+    const startX = W/2 - rowWidth/2;
+    for(let c=0;c<cols;c++){
+      const x = startX + c*geom.colGap;
+      geom.pegs.push({x,y,r:6});
+    }
+  }
+  // bins
+  geom.bins = [];
+  geom.binLineY = geom.topY + rows*geom.rowGap + 30;
+  const binCount = rows;
+  const rowWidth = (rows-1)*geom.colGap;
+  const startX = W/2 - rowWidth/2;
+  for(let i=0;i<binCount;i++){
+    const x = startX + i*geom.colGap;
+    geom.bins.push({x, y: geom.binLineY, i});
+  }
+  geom.leftWall  = startX - geom.colGap*0.6;
+  geom.rightWall = startX + rowWidth + geom.colGap*0.6;
+}
+
+// ======= Physics =======
+const GRAVITY = 1200; // px/s^2
+const RESTITUTION = 0.82;
+const FRICTION = 0.02;
+const BALL_R = 7.5;
+const MAX_SPEED = 900;
+
+const balls = [];
+
+function spawnBall(){
+  const bet = parseFloat(betInput.value);
+  if(!bet || bet<=0){ alert('Ingresa una apuesta válida.'); return; }
+
+  const rows = geom.rows;
+  const rowWidth = (rows-1)*geom.colGap;
+  const startX = W/2 - rowWidth/2;
+  const x = startX + (rowWidth/2) + (Math.random()-0.5)*geom.colGap*0.6;
+  const y = geom.topY - 40;
+  const vx = (Math.random()-0.5)*80;
+  const vy = 0;
+  balls.push({x,y,vx,vy,r:BALL_R,active:true, idx:null, life:0});
+  stateLabel.textContent = `Cayendo (${balls.filter(b=>b.active).length} activas)`;
+}
+
+function reflect(vx, vy, nx, ny){
+  const dot = vx*nx + vy*ny;
+  let rx = vx - 2*dot*nx;
+  let ry = vy - 2*dot*ny;
+  rx *= RESTITUTION;
+  ry *= RESTITUTION;
+  return {vx:rx, vy:ry};
+}
+
+function stepPhysics(dt){
+  const rows = geom.rows;
+  for(const b of balls){
+    if(!b.active) continue;
+    b.life += dt;
+
+    // gravity
+    b.vy += GRAVITY*dt;
+    // slight downward bias to avoid plateau
+    b.vy += 10*dt;
+
+    // clamp speed
+    const sp = Math.hypot(b.vx, b.vy);
+    if(sp > MAX_SPEED){
+      const k = MAX_SPEED/sp;
+      b.vx *= k; b.vy *= k;
+    }
+
+    // integrate
+    b.x += b.vx*dt;
+    b.y += b.vy*dt;
+
+    // walls (keep-in)
+    if(b.x - b.r < geom.leftWall){
+      b.x = geom.leftWall + b.r + 0.1;
+      b.vx = Math.abs(b.vx)*RESTITUTION;
+    }
+    if(b.x + b.r > geom.rightWall){
+      b.x = geom.rightWall - b.r - 0.1;
+      b.vx = -Math.abs(b.vx)*RESTITUTION;
+    }
+
+    // peg collisions
+    for(const p of geom.pegs){
+      const dx = b.x - p.x;
+      const dy = b.y - p.y;
+      const rr = b.r + p.r;
+      const d2 = dx*dx + dy*dy;
+      if(d2 < rr*rr){
+        const d = Math.sqrt(d2) || 0.001;
+        let nx = dx/d, ny = dy/d;
+        // separate
+        const overlap = rr - d;
+        b.x += nx * (overlap + 0.2);
+        b.y += ny * (overlap + 0.2);
+        // reflect
+        const out = reflect(b.vx, b.vy, nx, ny);
+        b.vx = out.vx; b.vy = out.vy;
+        // friction + random spin + downward nudge
+        b.vx = b.vx*(1-FRICTION) + (Math.random()-0.5)*28;
+        b.vy = b.vy*(1-FRICTION) + 12;
+      }
+    }
+
+    // funnel force near bins: attract horizontally to nearest bin
+    if(b.y > geom.binLineY - 120){
+      const startX = W/2 - ((rows-1)*geom.colGap)/2;
+      let idx = Math.round((b.x - startX)/geom.colGap);
+      idx = Math.max(0, Math.min(rows-1, idx));
+      const targetX = startX + idx*geom.colGap;
+      const ax = (targetX - b.x) * 8; // spring-like
+      b.vx += ax * dt;
+      // extra damping
+      b.vx *= 0.995; b.vy *= 0.999;
+    }
+
+    // floor settle: ensure landing
+    if(b.y >= geom.binLineY - b.r){
+      const startX = W/2 - ((rows-1)*geom.colGap)/2;
+      let idx = Math.round((b.x - startX)/geom.colGap);
+      idx = Math.max(0, Math.min(rows-1, idx));
+      b.idx = idx;
+      b.x = startX + idx*geom.colGap;
+      b.y = geom.binLineY - b.r;
+      b.vx = 0; b.vy = 0;
+      b.active = false;
+      onBallSettled(b);
+      continue;
+    }
+
+    // anti-stuck: if near stationary for too long above bins, nudge
+    if(b.life > 2 && Math.abs(b.vx) < 8 && Math.abs(b.vy) < 8 && b.y < geom.binLineY - 60){
+      b.vx += (Math.random()<0.5 ? -1 : 1) * 60;
+      b.vy += 90;
+    }
+
+    // hard fail-safe: if somehow exits bottom, force settle into closest bin
+    if(b.y > H + 50){
+      const startX = W/2 - ((rows-1)*geom.colGap)/2;
+      let idx = Math.round((b.x - startX)/geom.colGap);
+      idx = Math.max(0, Math.min(rows-1, idx));
+      b.idx = idx;
+      b.x = startX + idx*geom.colGap;
+      b.y = geom.binLineY - b.r;
+      b.vx = 0; b.vy = 0;
+      b.active = false;
+      onBallSettled(b);
+    }
+  }
+}
+
+function onBallSettled(b){
+  const rows = parseInt(rowsSelect.value,10);
+  const risk = riskSelect.value;
+  const mult = MULTS[risk][rows][b.idx];
+  const bet = parseFloat(betInput.value)||0;
+  const payout = bet * mult;
+
+  highlightBin(b.idx);
+  resultLabel.textContent = `x${mult.toFixed(2)}`;
+  payoutLabel.textContent = `${payout.toFixed(4)} BTC`;
+  pushHistory(mult, payout);
+
+  const activeCount = balls.filter(x=>x.active).length;
+  stateLabel.textContent = activeCount ? `Cayendo (${activeCount} activas)` : 'Listo';
+}
+
+// ======= Rendering =======
+function drawBackground(){
+  ctx.save();
+  const r = 14;
+  ctx.fillStyle = 'rgba(255,255,255,0.02)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  roundRect(ctx, 12, 12, W-24, H-24, r, true, true);
+  ctx.restore();
+}
+
+function drawPegs(){
+  ctx.save();
+  for(const p of geom.pegs){
+    const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,12);
+    g.addColorStop(0,'rgba(179,193,255,0.45)');
+    g.addColorStop(1,'rgba(179,193,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(p.x,p.y,12,0,Math.PI*2); ctx.fill();
+
+    ctx.fillStyle = '#b3c1ff';
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawBins(){
+  const rows = geom.rows;
+  const mults = MULTS[riskSelect.value][rows];
+  ctx.save();
+  for(const bin of geom.bins){
+    const {x,y,i} = bin;
+    const m = mults[i] || 1;
+    let fill = '#172036';
+    if(m>=4) fill = '#8b5cf6';
+    else if(m>=2) fill = '#06b6d4';
+    else if(m>=1) fill = '#22c55e';
+    else fill = '#ef4444';
+
+    // pillar
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(x-geom.colGap*0.45, y-8, geom.colGap*0.9, 8);
+
+    // bin rect
+    ctx.fillStyle = fill;
+    roundRect(ctx, x-18, y-26, 36, 18, 6, true, false);
+
+    // label
+    ctx.fillStyle = '#e6eef8';
+    ctx.font = '12px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('x'+m.toFixed(2), x, y-13);
+  }
+  ctx.restore();
+}
+
+function drawWalls(){
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.04)';
+  ctx.fillRect(geom.leftWall-2, geom.topY-20, 4, geom.binLineY - (geom.topY-20));
+  ctx.fillRect(geom.rightWall-2, geom.topY-20, 4, geom.binLineY - (geom.topY-20));
+  ctx.restore();
+}
+
+function drawBalls(){
+  for(const b of balls){
+    // trail
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = '#7c3aed';
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r*1.25, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    // core gradient
+    const g = ctx.createRadialGradient(b.x-2, b.y-3, 1, b.x, b.y, b.r);
+    g.addColorStop(0,'#ffffff');
+    g.addColorStop(1,'#06b6d4');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+
+    // gloss
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.beginPath(); ctx.arc(b.x-3, b.y-4, b.r*0.35, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r, fill, stroke){
+  if (typeof r === 'number') r = {tl:r,tr:r,br:r,bl:r};
+  ctx.beginPath();
+  ctx.moveTo(x+r.tl, y);
+  ctx.lineTo(x+w-r.tr, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r.tr);
+  ctx.lineTo(x+w, y+h-r.br);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r.br, y+h);
+  ctx.lineTo(x+r.bl, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r.bl);
+  ctx.lineTo(x, y+r.tl);
+  ctx.quadraticCurveTo(x, y, x+r.tl, y);
+  ctx.closePath();
+  if(fill) ctx.fill();
+  if(stroke) ctx.stroke();
+}
+
+// ======= Game loop =======
+let last = 0;
+function loop(ts){
+  if(!last) last = ts;
+  const dt = Math.min(0.033, (ts - last)/1000);
+  last = ts;
+
+  ctx.clearRect(0,0,W,H);
+  drawBackground();
+  drawPegs();
+  drawWalls();
+  drawBins();
+  stepPhysics(dt);
+  drawBalls();
+
+  requestAnimationFrame(loop);
+}
+
+// ======= Boot =======
+function boot(){
+  resize();
+  updateUIFromControls();
+  requestAnimationFrame(loop);
+}
+boot();
+</script>
+
+<script>
+/* Admin-controlled balance injection (reads ./admin.json).
+   Default balance_ARS if missing: 1000
+   This script replaces visible BTC amounts (e.g. "0.524 BTC") in text nodes with "<amount> ARS".
+   Edit admin.json to change the balance for all pages at once.
+*/
+(function(){
+  function formatNumber(n){
+    try{ return new Intl.NumberFormat('es-AR').format(n); }catch(e){ return String(n); }
+  }
+  function applyBalance(bal){
+    // Replace exact occurrences of numbers followed by BTC inside leaf nodes
+    var btcRegex = /[\d\.,]+\s*BTC/;
+    var nodes = Array.prototype.slice.call(document.querySelectorAll('body *'));
+    nodes.forEach(function(el){
+      // Only consider elements without child elements (leaf nodes) to avoid breaking structure
+      if(el.children.length===0 && typeof el.textContent === 'string'){
+        if(btcRegex.test(el.textContent)){
+          el.textContent = el.textContent.replace(btcRegex, formatNumber(bal) + ' ARS');
+        }
+      }
+    });
+    // Also try some common ids/classes
+    var ids = ['balanceLabel','betLabel'];
+    ids.forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.textContent = formatNumber(bal) + ' ARS';
+    });
+    // Elements with class "balance" - update their numeric portion if present
+    Array.prototype.slice.call(document.querySelectorAll('.balance')).forEach(function(el){
+      if(typeof el.textContent === 'string' && btcRegex.test(el.textContent)){
+        el.textContent = el.textContent.replace(btcRegex, formatNumber(bal) + ' ARS');
+      } else {
+        var txt = el.textContent || '';
+        if(txt.indexOf('BTC')!==-1){
+          el.textContent = txt.replace(btcRegex, formatNumber(bal) + ' ARS');
+        }
+      }
+    });
+  }
+
+  // Fetch admin.json from same folder
+  fetch('./admin.json', {cache: 'no-store'}).then(function(r){
+    if(!r.ok) throw new Error('no admin.json');
+    return r.json();
+  }).then(function(cfg){
+    var bal = cfg && (typeof cfg.balance_ARS !== 'undefined') ? cfg.balance_ARS : 1000;
+    applyBalance(bal);
+  }).catch(function(err){
+    // If fetch fails, apply default 1000 ARS
+    applyBalance(1000);
+    console.warn('admin.json not found or failed to load — using default 1000 ARS', err);
+  });
+})();
+</script>
+</body>
+</html>
