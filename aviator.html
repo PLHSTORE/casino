@@ -244,254 +244,190 @@
     </div>
   </div>
 
-<script>
-  // Elements
-  const startBtn = document.getElementById('startBtn');
-  const resetBtn = document.getElementById('resetBtn');
-  const cashoutBtn = document.getElementById('cashoutBtn');
-  const betInput = document.getElementById('betInput');
-  const speedSel = document.getElementById('speed');
-  const stateLabel = document.getElementById('stateLabel');
-  const betLabel = document.getElementById('betLabel');
-  const multLabel = document.getElementById('multLabel');
-  const payoutLabel = document.getElementById('payoutLabel');
-  const lastResult = document.getElementById('lastResult');
-  const bestLabel = document.getElementById('bestLabel');
-  const displayMult = document.getElementById('displayMult');
-  const plane = document.getElementById('plane');
-  const meterFill = document.getElementById('meterFill');
-  const timeline = document.getElementById('timeline');
-  const modal = document.getElementById('modal');
-  const modalBody = document.getElementById('modalBody');
-  const modalClose = document.getElementById('modalClose');
-  const glow = document.getElementById('glow');
 
-  let playing = false;
-  let bet = 0;
-  let currentMult = 1;
-  let crashPoint = 0;
-  let intervalId = null;
-  let best = localStorage.getItem('aviator_best') || '-';
 
-  bestLabel.innerText = best === '-' ? '—' : 'x' + parseFloat(best).toFixed(2);
 
-  function formatBTC(x){ return parseFloat(x).toFixed(4); }
-  function updatePanel(){
-    betLabel.innerText = bet ? `${formatBTC(bet)} BTC` : '-';
-    multLabel.innerText = `x${currentMult.toFixed(2)}`;
-    payoutLabel.innerText = bet ? `${formatBTC(bet * currentMult)} BTC` : '-';
-    stateLabel.innerText = playing ? 'En juego' : 'Inactivo';
-    cashoutBtn.disabled = !playing;
-    cashoutBtn.classList.toggle('disabled', !playing);
-    displayMult.innerText = `x${currentMult.toFixed(2)}`;
-  }
 
-  // Generate crash using a skewed distribution for variety
-  function generateCrash(){
-    const r = Math.random();
-    // sharpen distribution to favor small multipliers but allow occasional big ones
-    const crash = 1 + Math.pow(1/(1-r), 0.6) * 0.02 + r*2.2;
-    return Math.min(crash, 500);
-  }
-
-  function startRound(){
-    bet = parseFloat(betInput.value);
-    if(!bet || bet <= 0){ alert('Ingresa una apuesta válida.'); return; }
-    if(playing) return;
-    playing = true;
-    currentMult = 1;
-    crashPoint = generateCrash();
-    const speed = parseFloat(speedSel.value) || 1;
-    updatePanel();
-    timeline.innerText = 'Ronda en curso...';
-    lastResult.innerText = 'Jugando...';
-    meterFill.style.height = '0%';
-    glow.classList.remove('show');
-
-    // Move plane along a Bezier path visually according to multiplier
-    const startTime = performance.now();
-    const visualDuration = 8500 * (1/speed); // overall visual time scale
-    intervalId = setInterval(()=>{
-      const t = (performance.now() - startTime) / visualDuration; // 0..inf
-      // growth curve
-      currentMult = 1 + Math.min( Math.exp(t*2) - 1, crashPoint*1.02 );
-      // compute normalized progress to move plane along curve
-      const progress = Math.min(1, Math.log10(currentMult + 1) / Math.log10(crashPoint + 1));
-      // update plane position along a curve from bottom-left to top-right
-      const runway = document.getElementById('runway');
-      const w = runway.clientWidth, h = runway.clientHeight;
-      // cubic bezier coords
-      const x = bezier(progress, 0.08, 0.25, 0.7, 0.92) * (w - 120);
-      const y = (1 - bezier(progress, 0.92, 0.6, 0.35, 0.12)) * (h - 60);
-      plane.style.left = (8 + x/(w)*84) + '%'; // percent
-      plane.style.bottom = (8 + (y/(h))*60) + '%';
-      plane.style.transform = `rotate(${progress * 30}deg) scale(${1 + progress*0.25})`;
-
-      // meter visual (log scale)
-      const pct = Math.min(98, Math.log10(currentMult + 1) / Math.log10(crashPoint + 1) * 100);
-      meterFill.style.height = pct + '%';
-      updatePanel();
-
-      // small per-tick crash chance increases
-      const chance = (currentMult / crashPoint) * 0.015;
-      if(currentMult >= crashPoint || Math.random() < chance){
-        // crash
-        crashNow();
-      }
-    }, 75);
-  }
-
-  function bezier(t, p0, p1, p2, p3){
-    // cubic bezier evaluation (0..1)
-    const u = 1 - t;
-    return (u*u*u*p0) + (3*u*u*t*p1) + (3*u*t*t*p2) + (t*t*t*p3);
-  }
-
-  function crashNow(){
-    if(!playing) return;
-    clearInterval(intervalId);
-    playing = false;
-    currentMult = crashPoint;
-    updatePanel();
-    // plane explosion visual
-    plane.style.transition = 'transform .35s ease, opacity .35s ease';
-    plane.style.transform += ' scale(1.6)';
-    plane.style.opacity = '0';
-    timeline.innerText = `Crash en x${crashPoint.toFixed(2)} — Has perdido`;
-    lastResult.innerText = `Crash x${crashPoint.toFixed(2)} (Perdiste ${formatBTC(bet)} BTC)`;
-    // small delay to show explosion modal
-    setTimeout(()=>{
-      openModalLose();
-      // reset plane after animation
-      plane.style.transition = 'none';
-      plane.style.opacity = '1';
-      plane.style.transform = 'translateY(0) rotate(0deg) scale(1)';
-      plane.style.left = '8%';
-      plane.style.bottom = '8%';
-      meterFill.style.height = '0%';
-    }, 600);
-  }
-
-  function cashout(){
-    if(!playing) return;
-    clearInterval(intervalId);
-    playing = false;
-    const payout = bet * currentMult;
-    timeline.innerText = `Cashout en x${currentMult.toFixed(2)} — Cobras ${formatBTC(payout)} BTC`;
-    lastResult.innerText = `Cashout x${currentMult.toFixed(2)} → ${formatBTC(payout)} BTC`;
-    // show glow and small celebration
-    glow.classList.add('show');
-    setTimeout(()=> glow.classList.remove('show'), 900);
-    if(best === '-' || currentMult > parseFloat(best)){
-      best = currentMult.toFixed(2);
-      localStorage.setItem('aviator_best', best);
-      bestLabel.innerText = 'x' + parseFloat(best).toFixed(2);
-    }
-    openModalWin(payout);
-    // reset plane pos
-    plane.style.transition = 'transform .35s ease, left .35s ease, bottom .35s ease';
-    plane.style.left = '8%';
-    plane.style.bottom = '8%';
-    plane.style.transform = 'rotate(0deg) scale(1)';
-    meterFill.style.height = '0%';
-    updatePanel();
-  }
-
-  function openModalWin(payout){
-    modalBody.innerHTML = `<div style="font-size:18px;margin-bottom:8px">¡Cashout exitoso! 🎉</div>
-      <div style="color:var(--muted)">Has retirado <strong>${formatBTC(payout)} BTC</strong></div>`;
-    showModal();
-  }
-  function openModalLose(){
-    modalBody.innerHTML = `<div style="font-size:18px;margin-bottom:8px">Has explotado 💥</div>
-      <div style="color:var(--muted)">Crash en <strong>x${crashPoint.toFixed(2)}</strong>. Perdiste la apuesta de <strong>${formatBTC(bet)} BTC</strong></div>`;
-    showModal();
-  }
-
-  function showModal(){ modal.style.display='flex'; setTimeout(()=> modal.style.opacity='1',20) }
-  function closeModal(){ modal.style.opacity='0'; setTimeout(()=> modal.style.display='none',220) }
-
-  function resetAll(){
-    if(intervalId) clearInterval(intervalId);
-    playing = false;
-    currentMult = 1;
-    crashPoint = 0;
-    bet = 0;
-    betInput.value = '0.01';
-    meterFill.style.height = '0%';
-    timeline.innerText = 'Inactivo';
-    lastResult.innerText = 'Sin historial';
-    updatePanel();
-    plane.style.left = '8%';
-    plane.style.bottom = '8%';
-    plane.style.opacity = '1';
-    plane.style.transform = 'rotate(0deg) scale(1)';
-  }
-
-  // attach events
-  startBtn.addEventListener('click', startRound);
-  cashoutBtn.addEventListener('click', cashout);
-  resetBtn.addEventListener('click', resetAll);
-  modalClose.addEventListener('click', closeModal);
-
-  // initial update
-  updatePanel();
-</script>
 
 <script>
-/* Admin-controlled balance injection (reads ./admin.json).
-   Default balance_ARS if missing: 1000
-   This script replaces visible BTC amounts (e.g. "0.524 BTC") in text nodes with "<amount> ARS".
-   Edit admin.json to change the balance for all pages at once.
-*/
 (function(){
-  function formatNumber(n){
-    try{ return new Intl.NumberFormat('es-AR').format(n); }catch(e){ return String(n); }
+  const STORAGE_KEY = 'casino_balance_ARS';
+  const DEFAULT_BAL = 1000;
+  const ADMIN_PATH = './admin.json';
+  const POLL_INTERVAL_MS = 5000; // poll admin.json every 5 seconds for changes
+
+  // Helpers
+  function toNumber(v){
+    if (v === null || v === undefined) return 0;
+    v = String(v).replace(/[^\d\.,-]/g,'').trim();
+    v = v.replace(/\.(?=.*\.)/g,'').replace(/,(?=.*\,)/g,'');
+    v = v.replace(',', '.');
+    const n = parseFloat(v);
+    return isNaN(n)?0:n;
   }
-  function applyBalance(bal){
-    // Replace exact occurrences of numbers followed by BTC inside leaf nodes
-    var btcRegex = /[\d\.,]+\s*BTC/;
-    var nodes = Array.prototype.slice.call(document.querySelectorAll('body *'));
-    nodes.forEach(function(el){
-      // Only consider elements without child elements (leaf nodes) to avoid breaking structure
-      if(el.children.length===0 && typeof el.textContent === 'string'){
-        if(btcRegex.test(el.textContent)){
-          el.textContent = el.textContent.replace(btcRegex, formatNumber(bal) + ' ARS');
+  function formatARS(n){
+    if (Math.abs(Math.round(n) - n) < 1e-9) return Math.round(n).toLocaleString('es-AR');
+    return n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  function readStoredBalance(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw !== null) return Number(raw);
+    }catch(e){}
+    return null;
+  }
+  function writeStoredBalance(v){
+    try{
+      localStorage.setItem(STORAGE_KEY, String(Number(v)||0));
+      updateAllDisplays();
+    }catch(e){}
+  }
+
+  // Fetch admin.json and apply if different
+  let lastAdminRaw = null;
+  function fetchAndApplyAdmin(){
+    return fetch(ADMIN_PATH, {cache:'no-store'}).then(r=>{
+      if(!r.ok) throw new Error('no admin');
+      return r.text();
+    }).then(txt=>{
+      if(txt === lastAdminRaw) return null; // no change
+      lastAdminRaw = txt;
+      try{
+        const cfg = JSON.parse(txt);
+        const b = (cfg && typeof cfg.balance_ARS !== 'undefined')? Number(cfg.balance_ARS) : DEFAULT_BAL;
+        writeStoredBalance(b);
+        return b;
+      }catch(e){
+        // invalid JSON
+        return null;
+      }
+    }).catch(err=>{
+      if(readStoredBalance() === null) writeStoredBalance(DEFAULT_BAL);
+      return null;
+    });
+  }
+
+  // Text node sanitizer similar to before
+  function sanitizeTextNode(node){
+    if(!node || !node.nodeValue) return;
+    let txt = node.nodeValue;
+    if(/BTC/i.test(txt) || /([0-9\.,]+)\s*(BTC|btc)/i.test(txt)){
+      const bal = readStoredBalance() ?? DEFAULT_BAL;
+      txt = txt.replace(/([0-9\.,]+)\s*(BTC|btc)/ig, function(_,num){ return formatARS(bal) + ' ARS'; });
+      txt = txt.replace(/BTC/ig, 'ARS');
+      node.nodeValue = txt;
+    }
+  }
+
+  function updateAllDisplays(){
+    const bal = Number(localStorage.getItem(STORAGE_KEY)) || 0;
+    const selectors = [
+      '#balance', '#saldo', '#balanceLabel', '.balance', '.saldo', '.user-balance', '.balance-value'
+    ];
+    selectors.forEach(sel=>{
+      document.querySelectorAll(sel).forEach(el=>{
+        if(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'){
+          el.value = formatARS(bal);
+        } else {
+          el.textContent = formatARS(bal) + ' ARS';
         }
+      });
+    });
+    walkTextNodes(document.body, sanitizeTextNode);
+  }
+
+  function walkTextNodes(node, fn){
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null, false);
+    let n;
+    while(n = walker.nextNode()){
+      fn(n);
+    }
+  }
+
+  const observer = new MutationObserver(function(muts){
+    muts.forEach(m=>{
+      m.addedNodes.forEach(node=>{
+        if(node.nodeType === Node.TEXT_NODE){
+          sanitizeTextNode(node);
+        } else if(node.nodeType === Node.ELEMENT_NODE){
+          walkTextNodes(node, sanitizeTextNode);
+        }
+      });
+    });
+  });
+  observer.observe(document.documentElement || document.body, {childList:true, subtree:true});
+
+  function sanitizeBetInputs(){
+    const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"], input:not([type])'));
+    inputs.forEach(inp=>{
+      const idn = (inp.id||'') + ' ' + (inp.name||'') + ' ' + (inp.className||'');
+      if(/bet|wager|amount|apuesta|monto|stake|cantidad/i.test(idn)){
+        inp.setAttribute('placeholder', 'Monto en ARS');
+        inp.addEventListener('input', function(e){
+          const v = inp.value || '';
+          const num = toNumber(v);
+          inp.value = formatARS(num);
+        });
       }
     });
-    // Also try some common ids/classes
-    var ids = ['balanceLabel','betLabel'];
-    ids.forEach(function(id){
-      var el = document.getElementById(id);
-      if(el) el.textContent = formatNumber(bal) + ' ARS';
-    });
-    // Elements with class "balance" - update their numeric portion if present
-    Array.prototype.slice.call(document.querySelectorAll('.balance')).forEach(function(el){
-      if(typeof el.textContent === 'string' && btcRegex.test(el.textContent)){
-        el.textContent = el.textContent.replace(btcRegex, formatNumber(bal) + ' ARS');
-      } else {
-        var txt = el.textContent || '';
-        if(txt.indexOf('BTC')!==-1){
-          el.textContent = txt.replace(btcRegex, formatNumber(bal) + ' ARS');
-        }
+
+    const buttons = Array.from(document.querySelectorAll('button, a'));
+    buttons.forEach(btn=>{
+      const txt = (btn.textContent||'') + ' ' + (btn.id||'') + ' ' + (btn.className||'');
+      if(/bet|apostar|apost|spin|jugar|play|stake/i.test(txt)){
+        btn.addEventListener('click', function(e){
+          let betInput = null;
+          const parent = btn.closest('form, div, section, article') || document;
+          const candidates = parent.querySelectorAll('input, textarea, [contenteditable="true"]');
+          candidates.forEach(c=>{
+            const idn = (c.id||'') + ' ' + (c.name||'') + ' ' + (c.className||'');
+            if(/bet|wager|amount|apuesta|monto|stake|cantidad/i.test(idn) && !betInput) betInput = c;
+          });
+          if(!betInput){
+            Array.from(parent.querySelectorAll('input')).forEach(c=>{
+              if((c.type==='number' || c.type==='text') && !betInput) betInput = c;
+            });
+          }
+          if(betInput){
+            const num = toNumber(betInput.value || betInput.textContent || '');
+            const final = (num <= 0) ? 1 : num;
+            if(betInput.tagName === 'INPUT' || betInput.tagName === 'TEXTAREA'){
+              betInput.value = formatARS(final);
+            } else {
+              betInput.textContent = formatARS(final);
+            }
+          }
+          walkTextNodes(parent, sanitizeTextNode);
+        }, {capture:true});
       }
     });
   }
 
-  // Fetch admin.json from same folder
-  fetch('./admin.json', {cache: 'no-store'}).then(function(r){
-    if(!r.ok) throw new Error('no admin.json');
-    return r.json();
-  }).then(function(cfg){
-    var bal = cfg && (typeof cfg.balance_ARS !== 'undefined') ? cfg.balance_ARS : 1000;
-    applyBalance(bal);
-  }).catch(function(err){
-    // If fetch fails, apply default 1000 ARS
-    applyBalance(1000);
-    console.warn('admin.json not found or failed to load — using default 1000 ARS', err);
+  window.CasinoBalance = {
+    get: function(){ return Number(localStorage.getItem(STORAGE_KEY)) || 0; },
+    set: function(v){ writeStoredBalance(Number(v)||0); },
+    add: function(v){ const cur = Number(localStorage.getItem(STORAGE_KEY))||0; writeStoredBalance(cur + Number(v||0)); },
+    sub: function(v){ const cur = Number(localStorage.getItem(STORAGE_KEY))||0; writeStoredBalance(cur - Number(v||0)); },
+    reloadFromAdmin: function(){ return fetchAndApplyAdmin(); }
+  };
+
+  // Initialize: fetch admin.json immediately, then poll
+  fetchAndApplyAdmin().then(function(){
+    updateAllDisplays();
+    sanitizeBetInputs();
+    setInterval(function(){
+      fetchAndApplyAdmin().then(function(changed){
+        if(changed !== null){
+          console.info('admin.json updated, balance set to', changed);
+        }
+      });
+      updateAllDisplays();
+      sanitizeBetInputs();
+    }, POLL_INTERVAL_MS);
   });
 })();
 </script>
+
 </body>
 </html>

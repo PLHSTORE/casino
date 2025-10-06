@@ -214,410 +214,190 @@
   </main>
 </div>
 
-<script>
-// ======= Utilidades de cartas =======
-const SUITS = ['♠','♥','♦','♣'];
-const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
-const RANK_VALUE = (r)=> r === 'A' ? 11 : (['J','Q','K'].includes(r)?10:parseInt(r));
-
-function createDecks(n=6){
-  const d=[]; for(let i=0;i<n;i++){ for(const s of SUITS){ for(const r of RANKS){ d.push({r,s}); } }} return d;
-}
-function shuffle(a){
-  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a;
-}
-
-function handValue(cards){
-  let total = 0; let aces=0;
-  for(const c of cards){ total += RANK_VALUE(c.r); if(c.r==='A') aces++; }
-  while(total>21 && aces>0){ total -= 10; aces--; }
-  const soft = cards.some(c=>c.r==='A') && total<=21 && (total+10)<=21 && cards.length>0 ? true : (cards.some(c=>c.r==='A') && total<=21 && aces>0);
-  const isBJ = cards.length===2 && total===21;
-  const bust = total>21;
-  return {total, soft, isBlackjack:isBJ, bust};
-}
-
-function cardEl(card){
-  const el = document.createElement('div');
-  el.className = `card face ${['♥','♦'].includes(card.s)?'red':'black'}`;
-  el.innerHTML = `<div class="rank">${card.r}</div><div class="suit">${card.s}</div>`;
-  requestAnimationFrame(()=> el.classList.add('show'));
-  return el;
-}
-function backEl(){
-  const el = document.createElement('div'); el.className='card back'; requestAnimationFrame(()=> el.classList.add('show')); return el;
-}
-
-// ======= Estado del juego =======
-const dealerHandEl = document.getElementById('dealerHand');
-const playerHandsEl = document.getElementById('playerHands');
-const dealerValueEl = document.getElementById('dealerValue');
-const playerValueEl = document.getElementById('playerValue');
-const handIndexLabel = document.getElementById('handIndexLabel');
-
-const dealBtn = document.getElementById('dealBtn');
-const hitBtn = document.getElementById('hitBtn');
-const standBtn = document.getElementById('standBtn');
-const doubleBtn = document.getElementById('doubleBtn');
-const splitBtn = document.getElementById('splitBtn');
-const surrenderBtn = document.getElementById('surrenderBtn');
-const insureBtn = document.getElementById('insureBtn');
-
-const betInput = document.getElementById('betInput');
-const chips = Array.from(document.querySelectorAll('.chip'));
-const balanceLabel = document.getElementById('balanceLabel');
-
-const shoeInfo = document.getElementById('shoeInfo');
-const stateLabel = document.getElementById('stateLabel');
-const betLabel = document.getElementById('betLabel');
-const insLabel = document.getElementById('insLabel');
-const payoutLabel = document.getElementById('payoutLabel');
-const lastResult = document.getElementById('lastResult');
-const roundsLabel = document.getElementById('roundsLabel');
-const wldLabel = document.getElementById('wldLabel');
-const rtpLabel = document.getElementById('rtpLabel');
-
-const resetBtn = document.getElementById('resetBtn');
-const newShoeBtn = document.getElementById('newShoeBtn');
-
-let GAME = {
-  shoe: [],
-  discard: [],
-  decks: 6,
-  cutPenetration: 0.75, // rebarajar cuando quede 25%
-  balance: 0.5,
-  bet: 0.01,
-  rounds: 0, wins:0, losses:0, pushes:0, paid:0, wagered:0,
-  state: 'betting', // 'dealing','player','dealer','settle'
-  insuranceBet: 0,
-  allowDividirOnce: true,
-  hands: [], // [{cards:[], bet: number, done:bool, doubled:bool, surrendered:bool}]
-  activeHandIndex: 0,
-  dealer: { cards: [], holeHidden: true }
-};
-
-function formatBTC(x){ return parseFloat(x).toFixed(4); }
-function updateBalance(){ balanceLabel.innerText = `${formatBTC(GAME.balance)} BTC`; }
-function updateBetLabel(){ betLabel.innerText = `${formatBTC(GAME.bet)} BTC`; }
-function updateWLD(){ wldLabel.innerText = `${GAME.wins} / ${GAME.losses} / ${GAME.pushes}`; roundsLabel.innerText = `${GAME.rounds}`; const rtp = GAME.wagered>0 ? (100*GAME.paid/GAME.wagered).toFixed(2)+"%" : '-'; rtpLabel.innerText = rtp; }
-
-function initShoe(){ GAME.shoe = shuffle(createDecks(GAME.decks)); GAME.discard = []; renderShoeInfo(); }
-function renderShoeInfo(){ const pct = Math.max(0, Math.round((1 - (GAME.shoe.length/(GAME.decks*52)))*100)); shoeInfo.innerText = `Shoe: ${GAME.decks} mazos • Jugado ${pct}%`; }
-
-function canDeal(){ return GAME.state==='betting' && GAME.bet>0 && GAME.balance>=GAME.bet; }
-function setState(s){ GAME.state=s; stateLabel.innerText = s==='betting'?'Apostando': s==='dealing'?'Repartiendo': s==='player'?'Tu turno': s==='dealer'?'Crupier': 'Resolviendo'; }
-
-function clearHandsUI(){ dealerHandEl.innerHTML=''; playerHandsEl.innerHTML=''; dealerValueEl.innerText='-'; playerValueEl.innerText='-'; handIndexLabel.innerText=''; payoutLabel.innerText='-'; insLabel.innerText='-'; }
-
-function pushToDiscard(cards){ GAME.discard.push(...cards); }
-function drawCard(){ if(GAME.shoe.length===0) initShoe(); const c = GAME.shoe.pop(); renderShoeInfo(); return c; }
-
-function startRound(){
-  if(!canDeal()) { alert('Saldo insuficiente o apuesta inválida.'); return; }
-  if(GAME.shoe.length < (GAME.decks*52)*(1-GAME.cutPenetration)) initShoe();
-  setState('dealing'); clearHandsUI();
-  GAME.balance -= GAME.bet; updateBalance();
-  GAME.wagered += GAME.bet; updateWLD();
-  GAME.insuranceBet = 0; insLabel.innerText='-';
-  GAME.hands = [{cards:[], bet: GAME.bet, done:false, doubled:false, surrendered:false, split:false}];
-  GAME.activeHandIndex = 0; GAME.dealer = {cards:[], holeHidden:true};
-
-  // repartir
-  for(let i=0;i<2;i++){
-    GAME.hands[0].cards.push(drawCard());
-    GAME.dealer.cards.push(drawCard());
-  }
-  renderAll();
-
-  // seguro si As visible
-  offerSeguroIfAce();
-
-  // check dealer BJ
-  if(handValue(GAME.dealer.cards).isBlackjack){
-    revealDealerHole();
-    settleRound();
-    return;
-  }
-
-  // jugador BJ
-  if(handValue(GAME.hands[0].cards).isBlackjack){
-    // pagar 3:2
-    const payout = GAME.bet * 2.5; // retorna apuesta + ganancia 1.5x
-    GAME.balance += payout; GAME.paid += payout; updateBalance();
-    lastResult.innerText = `Blackjack! Pagado ${formatBTC(payout)} BTC`;
-    GAME.wins++; GAME.rounds++; updateWLD(); setState('settle');
-    revealDealerHole();
-    return;
-  }
-
-  // turno jugador
-  enableActionsForActiveHand(); setState('player');
-}
-
-function renderAll(){
-  // Dealer
-  dealerHandEl.innerHTML='';
-  GAME.dealer.cards.forEach((c,i)=>{
-    if(i===1 && GAME.dealer.holeHidden){ dealerHandEl.appendChild(backEl()); }
-    else dealerHandEl.appendChild(cardEl(c));
-  });
-  const dVal = handValue(GAME.dealer.cards);
-  dealerValueEl.className = 'value-badge';
-  dealerValueEl.innerText = GAME.dealer.holeHidden ? `${RANK_VALUE(GAME.dealer.cards[0].r)}` : (dVal.bust?`${dVal.total} (Bust)`:`${dVal.total}${dVal.soft?' (Soft)':''}`);
-
-  // Player hands
-  playerHandsEl.innerHTML='';
-  GAME.hands.forEach((h,idx)=>{
-    const wrap = document.createElement('div'); wrap.style.display='flex'; wrap.style.flexDirection='column'; wrap.style.gap='6px';
-    const label = document.createElement('div'); label.className='small'; label.innerHTML = `Mano ${idx+1} — <strong>${formatBTC(h.bet)} BTC</strong>`; wrap.appendChild(label);
-    const row = document.createElement('div'); row.className='hand'; row.id = `hand-${idx}`; wrap.appendChild(row);
-    h.cards.forEach(c=> row.appendChild(cardEl(c)) );
-    playerHandsEl.appendChild(wrap);
-  });
-
-  const cur = currentHand();
-  const pVal = handValue(cur.cards);
-  playerValueEl.className = 'value-badge' + (pVal.isBlackjack?' blackjack':'') + (pVal.bust?' bust':'') + (!pVal.bust && pVal.total>=18?' good':'');
-  playerValueEl.innerText = pVal.bust? `${pVal.total} (Bust)` : `${pVal.total}${pVal.soft?' (Soft)':''}`;
-
-  handIndexLabel.innerText = GAME.hands.length>1 ? `Jugando mano ${GAME.activeHandIndex+1} de ${GAME.hands.length}` : '';
-}
-
-function currentHand(){ return GAME.hands[GAME.activeHandIndex]; }
-
-function enableActionsForActiveHand(){
-  const h = currentHand();
-  const canDoblar = h.cards.length===2 && GAME.balance >= h.bet; // requiere saldo para doblar
-  const canDividir = h.cards.length===2 && h.cards[0].r===h.cards[1].r && GAME.allowDividirOnce && GAME.balance >= h.bet && !h.split;
-  const canRendirse = h.cards.length===2 && !h.doubled && !h.split;
-  const dealerUp = GAME.dealer.cards[0];
-
-  hitBtn.disabled = false; standBtn.disabled=false; doubleBtn.disabled = !canDoblar; splitBtn.disabled = !canDividir; surrenderBtn.disabled = !canRendirse; 
-  insureBtn.disabled = !(dealerUp.r==='A' && GAME.dealer.holeHidden && GAME.insuranceBet===0 && GAME.balance >= h.bet/2);
-}
-
-function disableAllActions(){ hitBtn.disabled = standBtn.disabled = doubleBtn.disabled = splitBtn.disabled = surrenderBtn.disabled = insureBtn.disabled = true; }
-
-function offerSeguroIfAce(){
-  const up = GAME.dealer.cards[0];
-  if(up.r==='A' && GAME.dealer.holeHidden){ insureBtn.disabled=false; insLabel.innerText='Oferta'; }
-}
-
-function revealDealerHole(){ GAME.dealer.holeHidden=false; renderAll(); }
-
-// ======= Acciones =======
-function hit(){
-  if(GAME.state!=='player') return;
-  const h = currentHand(); h.cards.push(drawCard()); renderAll();
-  const v = handValue(h.cards);
-  if(v.bust){ nextHandOrDealer(); }
-  else enableActionsForActiveHand();
-}
-function stand(){ if(GAME.state!=='player') return; nextHandOrDealer(); }
-function doubleDown(){
-  if(GAME.state!=='player') return; const h=currentHand(); if(h.cards.length!==2 || GAME.balance < h.bet) return;
-  GAME.balance -= h.bet; updateBalance(); GAME.wagered += h.bet; updateWLD(); h.bet *= 2; h.doubled = true; h.cards.push(drawCard()); renderAll(); nextHandOrDealer();
-}
-function split(){
-  if(GAME.state!=='player') return; const h=currentHand(); if(!(h.cards.length===2 && h.cards[0].r===h.cards[1].r)) return; if(!GAME.allowDividirOnce) return; if(GAME.balance < h.bet) return;
-  GAME.balance -= h.bet; updateBalance(); GAME.wagered += h.bet; updateWLD();
-  const card2 = h.cards.pop();
-  const newHand = {cards:[card2], bet:h.bet, done:false, doubled:false, surrendered:false, split:true};
-  h.split = true;
-  GAME.hands.splice(GAME.activeHandIndex+1,0,newHand);
-  // repartir una carta a cada mano
-  h.cards.push(drawCard()); newHand.cards.push(drawCard());
-  GAME.allowDividirOnce = false; renderAll(); enableActionsForActiveHand();
-}
-function surrender(){
-  if(GAME.state!=='player') return; const h=currentHand(); if(!(h.cards.length===2) || h.doubled) return;
-  h.surrendered = true; h.done = true; const refund = h.bet/2; GAME.balance += refund; GAME.paid += refund; updateBalance(); lastResult.innerText = `Rendirse: reembolso ${formatBTC(refund)} BTC`;
-  nextHandOrDealer();
-}
-function insure(){
-  if(GAME.state!=='player') return; const h=currentHand(); if(!(GAME.dealer.cards[0].r==='A') || GAME.insuranceBet>0 || GAME.balance < h.bet/2) return;
-  GAME.insuranceBet = h.bet/2; GAME.balance -= GAME.insuranceBet; GAME.wagered += GAME.insuranceBet; updateBalance(); insLabel.innerText = `${formatBTC(GAME.insuranceBet)} BTC`;
-  // chequeo inmediato si el crupier tiene BJ
-  const d = handValue(GAME.dealer.cards);
-  if(d.isBlackjack){
-    revealDealerHole();
-    // seguro paga 2:1
-    const pay = GAME.insuranceBet*3; GAME.balance += pay; GAME.paid += pay; updateBalance(); lastResult.innerText = `Dealer Blackjack. Seguro paga ${formatBTC(pay)} BTC`;
-    settleRound();
-  } else {
-    lastResult.innerText = `Seguro apostado ${formatBTC(GAME.insuranceBet)} BTC`;
-    enableActionsForActiveHand();
-  }
-}
-
-function nextHandOrDealer(){
-  // si quedan manos por jugar
-  GAME.hands[GAME.activeHandIndex].done = true;
-  for(let i=0;i<GAME.hands.length;i++){
-    if(!GAME.hands[i].done){ GAME.activeHandIndex = i; renderAll(); enableActionsForActiveHand(); return; }
-  }
-  // turno del dealer
-  disableAllActions(); setState('dealer'); revealDealerHole();
-  const play = ()=>{
-    const dVal = handValue(GAME.dealer.cards);
-    if(dVal.total<17 || (dVal.total===17 && dVal.soft)){ GAME.dealer.cards.push(drawCard()); renderAll(); setTimeout(play, 450); }
-    else settleRound();
-  };
-  setTimeout(play, 450);
-}
-
-function settleRound(){
-  setState('settle');
-  const dVal = handValue(GAME.dealer.cards);
-  let roundText=[]; let wins=0, losses=0, pushes=0; let totalPaid=0;
-
-  // resolver seguro si no se resolvió
-  if(GAME.insuranceBet>0 && !dVal.isBlackjack){ // pierde seguro
-    roundText.push(`Seguro perdido (${formatBTC(GAME.insuranceBet)} BTC)`);
-  }
-
-  for(const h of GAME.hands){
-    const pVal = handValue(h.cards);
-    if(h.surrendered){ losses++; roundText.push(`Mano ${formatBTC(h.bet)}: Rendirse (-${formatBTC(h.bet/2)})`); continue; }
-    if(pVal.bust){ losses++; roundText.push(`Mano ${formatBTC(h.bet)}: Bust`); continue; }
-    if(dVal.bust){ const pay = h.bet*2; GAME.balance += pay; GAME.paid += pay; totalPaid+=pay; wins++; roundText.push(`Mano ${formatBTC(h.bet)}: Gana (+${formatBTC(h.bet)})`); continue; }
-
-    if(pVal.total>dVal.total){ const pay=h.bet*2; GAME.balance += pay; GAME.paid += pay; totalPaid+=pay; wins++; roundText.push(`Mano ${formatBTC(h.bet)}: Gana (+${formatBTC(h.bet)})`); }
-    else if(pVal.total<dVal.total){ losses++; roundText.push(`Mano ${formatBTC(h.bet)}: Pierde`); }
-    else { // push
-      const pay=h.bet; GAME.balance += pay; GAME.paid += pay; totalPaid+=pay; pushes++; roundText.push(`Mano ${formatBTC(h.bet)}: Push (devolución)`); }
-  }
-
-  GAME.rounds++; GAME.wins+=wins; GAME.losses+=losses; GAME.pushes+=pushes; updateWLD(); updateBalance();
-  lastResult.innerText = roundText.join(' • ');
-
-  // preparar siguiente ronda
-  GAME.hands.forEach(h=> pushToDiscard(h.cards)); pushToDiscard(GAME.dealer.cards);
-  GAME.allowDividirOnce = true; GAME.state='betting'; stateLabel.innerText='Apostando';
-  dealerValueEl.className='value-badge'; playerValueEl.className='value-badge';
-  // payout previsto vuelve a '-'
-  payoutLabel.innerText='-';
-}
-
-// ======= UI/Eventos =======
-chips.forEach(ch=> ch.addEventListener('click', ()=>{ chips.forEach(c=>c.classList.remove('active')); ch.classList.add('active'); betInput.value = ch.dataset.chip; GAME.bet=parseFloat(ch.dataset.chip); updateBetLabel(); }));
-
-betInput.addEventListener('input', ()=>{ const v = Math.max(0, parseFloat(betInput.value)||0); GAME.bet=v; updateBetLabel(); });
-
-dealBtn.addEventListener('click', startRound);
-
-hitBtn.addEventListener('click', hit);
-standBtn.addEventListener('click', stand);
-doubleBtn.addEventListener('click', doubleDown);
-splitBtn.addEventListener('click', split);
-surrenderBtn.addEventListener('click', surrender);
-insureBtn.addEventListener('click', insure);
-
-resetBtn.addEventListener('click', ()=>{
-  GAME.balance = 0.5; GAME.bet = 0.01; GAME.rounds=GAME.wins=GAME.losses=GAME.pushes=GAME.paid=GAME.wagered=0; betInput.value='0.01'; chips.forEach(c=> c.classList.toggle('active', c.dataset.chip==='0.01'));
-  updateBalance(); updateBetLabel(); updateWLD(); lastResult.innerText='Sin historial'; clearHandsUI(); setState('betting');
-});
-
-newShoeBtn.addEventListener('click', ()=>{ initShoe(); lastResult.innerText='Nuevo shoe barajado'; });
-
-function refreshPayoutPreview(){
-  if(GAME.state!=='player'){ payoutLabel.innerText='-'; return; }
-  const h=currentHand(); const v=handValue(h.cards); if(v.bust){ payoutLabel.innerText='-'; return; }
-  // preview simple: si te plantas ahora vs dealer boca abajo (promedio no trivial). Mostramos valor actual nada más.
-  payoutLabel.innerText = `${v.total}${v.soft?' (Soft)':''}`;
-}
-
-// init
-initShoe(); updateBalance(); updateBetLabel(); updateWLD(); clearHandsUI(); setState('betting');
-
-// accesibilidad
-document.addEventListener('keydown', (e)=>{
-  if(GAME.state==='player'){
-    if(e.key==='h' || e.key==='H') hit();
-    if(e.key==='s' || e.key==='S') stand();
-    if(e.key==='d' || e.key==='D') doubleDown();
-  }
-});
 
 
-// Mostrar mensaje elegante de ganador
-function showWinnerMessage(texto, color='white'){
-  const msg = document.getElementById('winnerMessage');
-  msg.innerText = texto;
-  msg.style.color = color;
-  msg.style.display = 'block';
-  setTimeout(()=> msg.style.display='none', 2500);
-}
 
-// Ajuste en settleRound() para mostrar mensaje elegante
-const oldSettleRound = settleRound;
-settleRound = function(){
-  oldSettleRound();
-  const dVal = handValue(GAME.dealer.cards);
-  const lastText = lastResult.innerText.toLowerCase();
-  if(lastText.includes('gana')) showWinnerMessage('¡Ganaste!', '#10b981');
-  else if(lastText.includes('pierde')) showWinnerMessage('Perdiste', '#ef4444');
-  else if(lastText.includes('push')) showWinnerMessage('Empate', '#f59e0b');
-};
 
-// observar cambios para preview
-setInterval(refreshPayoutPreview, 400);
-</script>
 
 <script>
-/* Admin-controlled balance injection (reads ./admin.json).
-   Default balance_ARS if missing: 1000
-   This script replaces visible BTC amounts (e.g. "0.524 BTC") in text nodes with "<amount> ARS".
-   Edit admin.json to change the balance for all pages at once.
-*/
 (function(){
-  function formatNumber(n){
-    try{ return new Intl.NumberFormat('es-AR').format(n); }catch(e){ return String(n); }
+  const STORAGE_KEY = 'casino_balance_ARS';
+  const DEFAULT_BAL = 1000;
+  const ADMIN_PATH = './admin.json';
+  const POLL_INTERVAL_MS = 5000; // poll admin.json every 5 seconds for changes
+
+  // Helpers
+  function toNumber(v){
+    if (v === null || v === undefined) return 0;
+    v = String(v).replace(/[^\d\.,-]/g,'').trim();
+    v = v.replace(/\.(?=.*\.)/g,'').replace(/,(?=.*\,)/g,'');
+    v = v.replace(',', '.');
+    const n = parseFloat(v);
+    return isNaN(n)?0:n;
   }
-  function applyBalance(bal){
-    // Replace exact occurrences of numbers followed by BTC inside leaf nodes
-    var btcRegex = /[\d\.,]+\s*BTC/;
-    var nodes = Array.prototype.slice.call(document.querySelectorAll('body *'));
-    nodes.forEach(function(el){
-      // Only consider elements without child elements (leaf nodes) to avoid breaking structure
-      if(el.children.length===0 && typeof el.textContent === 'string'){
-        if(btcRegex.test(el.textContent)){
-          el.textContent = el.textContent.replace(btcRegex, formatNumber(bal) + ' ARS');
+  function formatARS(n){
+    if (Math.abs(Math.round(n) - n) < 1e-9) return Math.round(n).toLocaleString('es-AR');
+    return n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  function readStoredBalance(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw !== null) return Number(raw);
+    }catch(e){}
+    return null;
+  }
+  function writeStoredBalance(v){
+    try{
+      localStorage.setItem(STORAGE_KEY, String(Number(v)||0));
+      updateAllDisplays();
+    }catch(e){}
+  }
+
+  // Fetch admin.json and apply if different
+  let lastAdminRaw = null;
+  function fetchAndApplyAdmin(){
+    return fetch(ADMIN_PATH, {cache:'no-store'}).then(r=>{
+      if(!r.ok) throw new Error('no admin');
+      return r.text();
+    }).then(txt=>{
+      if(txt === lastAdminRaw) return null; // no change
+      lastAdminRaw = txt;
+      try{
+        const cfg = JSON.parse(txt);
+        const b = (cfg && typeof cfg.balance_ARS !== 'undefined')? Number(cfg.balance_ARS) : DEFAULT_BAL;
+        writeStoredBalance(b);
+        return b;
+      }catch(e){
+        // invalid JSON
+        return null;
+      }
+    }).catch(err=>{
+      if(readStoredBalance() === null) writeStoredBalance(DEFAULT_BAL);
+      return null;
+    });
+  }
+
+  // Text node sanitizer similar to before
+  function sanitizeTextNode(node){
+    if(!node || !node.nodeValue) return;
+    let txt = node.nodeValue;
+    if(/BTC/i.test(txt) || /([0-9\.,]+)\s*(BTC|btc)/i.test(txt)){
+      const bal = readStoredBalance() ?? DEFAULT_BAL;
+      txt = txt.replace(/([0-9\.,]+)\s*(BTC|btc)/ig, function(_,num){ return formatARS(bal) + ' ARS'; });
+      txt = txt.replace(/BTC/ig, 'ARS');
+      node.nodeValue = txt;
+    }
+  }
+
+  function updateAllDisplays(){
+    const bal = Number(localStorage.getItem(STORAGE_KEY)) || 0;
+    const selectors = [
+      '#balance', '#saldo', '#balanceLabel', '.balance', '.saldo', '.user-balance', '.balance-value'
+    ];
+    selectors.forEach(sel=>{
+      document.querySelectorAll(sel).forEach(el=>{
+        if(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'){
+          el.value = formatARS(bal);
+        } else {
+          el.textContent = formatARS(bal) + ' ARS';
         }
+      });
+    });
+    walkTextNodes(document.body, sanitizeTextNode);
+  }
+
+  function walkTextNodes(node, fn){
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null, false);
+    let n;
+    while(n = walker.nextNode()){
+      fn(n);
+    }
+  }
+
+  const observer = new MutationObserver(function(muts){
+    muts.forEach(m=>{
+      m.addedNodes.forEach(node=>{
+        if(node.nodeType === Node.TEXT_NODE){
+          sanitizeTextNode(node);
+        } else if(node.nodeType === Node.ELEMENT_NODE){
+          walkTextNodes(node, sanitizeTextNode);
+        }
+      });
+    });
+  });
+  observer.observe(document.documentElement || document.body, {childList:true, subtree:true});
+
+  function sanitizeBetInputs(){
+    const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"], input:not([type])'));
+    inputs.forEach(inp=>{
+      const idn = (inp.id||'') + ' ' + (inp.name||'') + ' ' + (inp.className||'');
+      if(/bet|wager|amount|apuesta|monto|stake|cantidad/i.test(idn)){
+        inp.setAttribute('placeholder', 'Monto en ARS');
+        inp.addEventListener('input', function(e){
+          const v = inp.value || '';
+          const num = toNumber(v);
+          inp.value = formatARS(num);
+        });
       }
     });
-    // Also try some common ids/classes
-    var ids = ['balanceLabel','betLabel'];
-    ids.forEach(function(id){
-      var el = document.getElementById(id);
-      if(el) el.textContent = formatNumber(bal) + ' ARS';
-    });
-    // Elements with class "balance" - update their numeric portion if present
-    Array.prototype.slice.call(document.querySelectorAll('.balance')).forEach(function(el){
-      if(typeof el.textContent === 'string' && btcRegex.test(el.textContent)){
-        el.textContent = el.textContent.replace(btcRegex, formatNumber(bal) + ' ARS');
-      } else {
-        var txt = el.textContent || '';
-        if(txt.indexOf('BTC')!==-1){
-          el.textContent = txt.replace(btcRegex, formatNumber(bal) + ' ARS');
-        }
+
+    const buttons = Array.from(document.querySelectorAll('button, a'));
+    buttons.forEach(btn=>{
+      const txt = (btn.textContent||'') + ' ' + (btn.id||'') + ' ' + (btn.className||'');
+      if(/bet|apostar|apost|spin|jugar|play|stake/i.test(txt)){
+        btn.addEventListener('click', function(e){
+          let betInput = null;
+          const parent = btn.closest('form, div, section, article') || document;
+          const candidates = parent.querySelectorAll('input, textarea, [contenteditable="true"]');
+          candidates.forEach(c=>{
+            const idn = (c.id||'') + ' ' + (c.name||'') + ' ' + (c.className||'');
+            if(/bet|wager|amount|apuesta|monto|stake|cantidad/i.test(idn) && !betInput) betInput = c;
+          });
+          if(!betInput){
+            Array.from(parent.querySelectorAll('input')).forEach(c=>{
+              if((c.type==='number' || c.type==='text') && !betInput) betInput = c;
+            });
+          }
+          if(betInput){
+            const num = toNumber(betInput.value || betInput.textContent || '');
+            const final = (num <= 0) ? 1 : num;
+            if(betInput.tagName === 'INPUT' || betInput.tagName === 'TEXTAREA'){
+              betInput.value = formatARS(final);
+            } else {
+              betInput.textContent = formatARS(final);
+            }
+          }
+          walkTextNodes(parent, sanitizeTextNode);
+        }, {capture:true});
       }
     });
   }
 
-  // Fetch admin.json from same folder
-  fetch('./admin.json', {cache: 'no-store'}).then(function(r){
-    if(!r.ok) throw new Error('no admin.json');
-    return r.json();
-  }).then(function(cfg){
-    var bal = cfg && (typeof cfg.balance_ARS !== 'undefined') ? cfg.balance_ARS : 1000;
-    applyBalance(bal);
-  }).catch(function(err){
-    // If fetch fails, apply default 1000 ARS
-    applyBalance(1000);
-    console.warn('admin.json not found or failed to load — using default 1000 ARS', err);
+  window.CasinoBalance = {
+    get: function(){ return Number(localStorage.getItem(STORAGE_KEY)) || 0; },
+    set: function(v){ writeStoredBalance(Number(v)||0); },
+    add: function(v){ const cur = Number(localStorage.getItem(STORAGE_KEY))||0; writeStoredBalance(cur + Number(v||0)); },
+    sub: function(v){ const cur = Number(localStorage.getItem(STORAGE_KEY))||0; writeStoredBalance(cur - Number(v||0)); },
+    reloadFromAdmin: function(){ return fetchAndApplyAdmin(); }
+  };
+
+  // Initialize: fetch admin.json immediately, then poll
+  fetchAndApplyAdmin().then(function(){
+    updateAllDisplays();
+    sanitizeBetInputs();
+    setInterval(function(){
+      fetchAndApplyAdmin().then(function(changed){
+        if(changed !== null){
+          console.info('admin.json updated, balance set to', changed);
+        }
+      });
+      updateAllDisplays();
+      sanitizeBetInputs();
+    }, POLL_INTERVAL_MS);
   });
 })();
 </script>
+
 </body>
 </html>

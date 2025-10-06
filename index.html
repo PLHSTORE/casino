@@ -219,7 +219,7 @@
             <div class="meta"><div class="tag">Mines</div><div style="color:var(--muted);font-size:13px">5x5 — Riesgo medio</div></div>
             <p class="desc">Experimentá el clásico juego de minas con tablero 5x5. Lógica coherente con la versión principal: seleccionar minas, descubrir casillas y cobrar antes de explotar.</p>
             <div class="controls">
-              <button class="btn" data-href="minas.html">Jugar</button>
+              <button class="btn" data-href="MATEO1">Jugar</button>
               <button class="btn secondary" data-action="info" data-title="Mini Juego 1" data-desc="Versión demo con tablero 5x5 y cashout.">Info</button>
             </div>
           </article>
@@ -239,7 +239,7 @@
             <div class="meta"><div class="tag">Crash</div><div style="color:var(--muted);font-size:13px">Rápido — Alta volatilidad</div></div>
             <p class="desc">Simula una ronda de Crash: sube el multiplicador y retirá a tiempo para ganar. Ideal para partidas rápidas y apuestas dinámicas.</p>
             <div class="controls">
-              <button class="btn" data-href="plinko.html">Jugar</button>
+              <button class="btn" data-href="MATEO2">Jugar</button>
               <button class="btn secondary" data-action="info" data-title="Mini Juego 2" data-desc="Rondas rápidas con multiplicador creciente.">Info</button>
             </div>
           </article>
@@ -259,7 +259,7 @@
             <div class="meta"><div class="tag">Plinko</div><div style="color:var(--muted);font-size:13px">Casual — Gráficos</div></div>
             <p class="desc">Dejá caer la ficha y observá dónde caíga — un clásico divertido. Cuanto más baja la casilla, mayor el premio.</p>
             <div class="controls">
-              <button class="btn" data-href="blackjack.html">Jugar</button>
+              <button class="btn" data-href="MATEO3">Jugar</button>
               <button class="btn secondary" data-action="info" data-title="Mini Juego 3" data-desc="Plinko clásico con tabla de premios.">Info</button>
             </div>
           </article>
@@ -279,7 +279,7 @@
             <div class="meta"><div class="tag">Torre</div><div style="color:var(--muted);font-size:13px">Estrategia</div></div>
             <p class="desc">Subí por la torre seleccionando niveles seguros. Cada nivel multiplica tu apuesta.</p>
             <div class="controls">
-              <button class="btn" data-href="aviator.html">Jugar</button>
+              <button class="btn" data-href="MATEO4">Jugar</button>
               <button class="btn secondary" data-action="info" data-title="Mini Juego 4" data-desc="Torre escalable con apuestas progresivas.">Info</button>
             </div>
           </article>
@@ -303,139 +303,190 @@
     </div>
   </div>
 
-<script>
-  // Interactividad ligera para demo — aumenta peso y UX
-  const chips = Array.from(document.querySelectorAll('.chip'));
-  const gamesGrid = document.getElementById('gamesGrid');
-  const searchInput = document.getElementById('searchInput');
-  const modal = document.getElementById('modal');
-  const modalBody = document.getElementById('modalBody');
-  const modalTitle = document.getElementById('modalTitle');
-  const closeModal = document.getElementById('closeModal');
 
-  // Filtrado por chips
-  chips.forEach(c=>c.addEventListener('click', ()=>{
-    chips.forEach(ch=>ch.classList.remove('active'));
-    c.classList.add('active');
-    const filter = c.dataset.filter;
-    filterGames(filter);
-  }));
 
-  // búsqueda en tiempo real
-  searchInput.addEventListener('input', ()=>{
-    const q = searchInput.value.trim().toLowerCase();
-    Array.from(gamesGrid.children).forEach(card => {
-      const title = card.querySelector('h3').innerText.toLowerCase();
-      const desc = card.querySelector('.desc').innerText.toLowerCase();
-      const show = !q || title.includes(q) || desc.includes(q);
-      card.style.display = show ? '' : 'none';
-    });
-  });
 
-  // botones play / info
-  document.querySelectorAll('.btn').forEach(btn => {
-    const href = btn.dataset.href;
-    const action = btn.dataset.action;
-    if(href){
-      btn.addEventListener('click', ()=>{ window.location.href = href });
-    } else if(action === 'info'){
-      btn.addEventListener('click', (e)=>{
-        const title = btn.dataset.title || 'Detalle';
-        const desc = btn.dataset.desc || '';
-        openModal(title, desc);
-      });
-    }
-  });
 
-  function filterGames(key){
-    Array.from(gamesGrid.children).forEach(card => {
-      const tags = (card.dataset.tags || '').split(',').map(t=>t.trim());
-      const show = key === 'all' ? true : tags.includes(key);
-      card.style.display = show ? '' : 'none';
-    });
-  }
-
-  function openModal(title, desc){
-    modalTitle.innerText = title;
-    modalBody.innerText = desc;
-    modal.classList.add('open');
-  }
-  closeModal.addEventListener('click', ()=> modal.classList.remove('open'));
-  document.addEventListener('keydown', e=>{ if(e.key === 'Escape') modal.classList.remove('open') });
-
-  // initial filter
-  filterGames('all');
-
-  // small decorative JS to create dynamic gradient movement (CSS-only would be lighter, but we keep small script)
-  (function animateBG(){
-    let t = 0;
-    const root = document.documentElement;
-    function frame(){
-      t += 0.0025;
-      const x = Math.sin(t) * 10;
-      const y = Math.cos(t * 1.1) * 6;
-      root.style.setProperty('--bg-pos-x', x + '%');
-      root.style.setProperty('--bg-pos-y', y + '%');
-      requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
-  })();
-</script>
 
 <script>
-/* Admin-controlled balance injection (reads ./admin.json).
-   Default balance_ARS if missing: 1000
-   This script replaces visible BTC amounts (e.g. "0.524 BTC") in text nodes with "<amount> ARS".
-   Edit admin.json to change the balance for all pages at once.
-*/
 (function(){
-  function formatNumber(n){
-    try{ return new Intl.NumberFormat('es-AR').format(n); }catch(e){ return String(n); }
+  const STORAGE_KEY = 'casino_balance_ARS';
+  const DEFAULT_BAL = 1000;
+  const ADMIN_PATH = './admin.json';
+  const POLL_INTERVAL_MS = 5000; // poll admin.json every 5 seconds for changes
+
+  // Helpers
+  function toNumber(v){
+    if (v === null || v === undefined) return 0;
+    v = String(v).replace(/[^\d\.,-]/g,'').trim();
+    v = v.replace(/\.(?=.*\.)/g,'').replace(/,(?=.*\,)/g,'');
+    v = v.replace(',', '.');
+    const n = parseFloat(v);
+    return isNaN(n)?0:n;
   }
-  function applyBalance(bal){
-    // Replace exact occurrences of numbers followed by BTC inside leaf nodes
-    var btcRegex = /[\d\.,]+\s*BTC/;
-    var nodes = Array.prototype.slice.call(document.querySelectorAll('body *'));
-    nodes.forEach(function(el){
-      // Only consider elements without child elements (leaf nodes) to avoid breaking structure
-      if(el.children.length===0 && typeof el.textContent === 'string'){
-        if(btcRegex.test(el.textContent)){
-          el.textContent = el.textContent.replace(btcRegex, formatNumber(bal) + ' ARS');
+  function formatARS(n){
+    if (Math.abs(Math.round(n) - n) < 1e-9) return Math.round(n).toLocaleString('es-AR');
+    return n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  function readStoredBalance(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw !== null) return Number(raw);
+    }catch(e){}
+    return null;
+  }
+  function writeStoredBalance(v){
+    try{
+      localStorage.setItem(STORAGE_KEY, String(Number(v)||0));
+      updateAllDisplays();
+    }catch(e){}
+  }
+
+  // Fetch admin.json and apply if different
+  let lastAdminRaw = null;
+  function fetchAndApplyAdmin(){
+    return fetch(ADMIN_PATH, {cache:'no-store'}).then(r=>{
+      if(!r.ok) throw new Error('no admin');
+      return r.text();
+    }).then(txt=>{
+      if(txt === lastAdminRaw) return null; // no change
+      lastAdminRaw = txt;
+      try{
+        const cfg = JSON.parse(txt);
+        const b = (cfg && typeof cfg.balance_ARS !== 'undefined')? Number(cfg.balance_ARS) : DEFAULT_BAL;
+        writeStoredBalance(b);
+        return b;
+      }catch(e){
+        // invalid JSON
+        return null;
+      }
+    }).catch(err=>{
+      if(readStoredBalance() === null) writeStoredBalance(DEFAULT_BAL);
+      return null;
+    });
+  }
+
+  // Text node sanitizer similar to before
+  function sanitizeTextNode(node){
+    if(!node || !node.nodeValue) return;
+    let txt = node.nodeValue;
+    if(/BTC/i.test(txt) || /([0-9\.,]+)\s*(BTC|btc)/i.test(txt)){
+      const bal = readStoredBalance() ?? DEFAULT_BAL;
+      txt = txt.replace(/([0-9\.,]+)\s*(BTC|btc)/ig, function(_,num){ return formatARS(bal) + ' ARS'; });
+      txt = txt.replace(/BTC/ig, 'ARS');
+      node.nodeValue = txt;
+    }
+  }
+
+  function updateAllDisplays(){
+    const bal = Number(localStorage.getItem(STORAGE_KEY)) || 0;
+    const selectors = [
+      '#balance', '#saldo', '#balanceLabel', '.balance', '.saldo', '.user-balance', '.balance-value'
+    ];
+    selectors.forEach(sel=>{
+      document.querySelectorAll(sel).forEach(el=>{
+        if(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'){
+          el.value = formatARS(bal);
+        } else {
+          el.textContent = formatARS(bal) + ' ARS';
         }
+      });
+    });
+    walkTextNodes(document.body, sanitizeTextNode);
+  }
+
+  function walkTextNodes(node, fn){
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null, false);
+    let n;
+    while(n = walker.nextNode()){
+      fn(n);
+    }
+  }
+
+  const observer = new MutationObserver(function(muts){
+    muts.forEach(m=>{
+      m.addedNodes.forEach(node=>{
+        if(node.nodeType === Node.TEXT_NODE){
+          sanitizeTextNode(node);
+        } else if(node.nodeType === Node.ELEMENT_NODE){
+          walkTextNodes(node, sanitizeTextNode);
+        }
+      });
+    });
+  });
+  observer.observe(document.documentElement || document.body, {childList:true, subtree:true});
+
+  function sanitizeBetInputs(){
+    const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"], input:not([type])'));
+    inputs.forEach(inp=>{
+      const idn = (inp.id||'') + ' ' + (inp.name||'') + ' ' + (inp.className||'');
+      if(/bet|wager|amount|apuesta|monto|stake|cantidad/i.test(idn)){
+        inp.setAttribute('placeholder', 'Monto en ARS');
+        inp.addEventListener('input', function(e){
+          const v = inp.value || '';
+          const num = toNumber(v);
+          inp.value = formatARS(num);
+        });
       }
     });
-    // Also try some common ids/classes
-    var ids = ['balanceLabel','betLabel'];
-    ids.forEach(function(id){
-      var el = document.getElementById(id);
-      if(el) el.textContent = formatNumber(bal) + ' ARS';
-    });
-    // Elements with class "balance" - update their numeric portion if present
-    Array.prototype.slice.call(document.querySelectorAll('.balance')).forEach(function(el){
-      if(typeof el.textContent === 'string' && btcRegex.test(el.textContent)){
-        el.textContent = el.textContent.replace(btcRegex, formatNumber(bal) + ' ARS');
-      } else {
-        var txt = el.textContent || '';
-        if(txt.indexOf('BTC')!==-1){
-          el.textContent = txt.replace(btcRegex, formatNumber(bal) + ' ARS');
-        }
+
+    const buttons = Array.from(document.querySelectorAll('button, a'));
+    buttons.forEach(btn=>{
+      const txt = (btn.textContent||'') + ' ' + (btn.id||'') + ' ' + (btn.className||'');
+      if(/bet|apostar|apost|spin|jugar|play|stake/i.test(txt)){
+        btn.addEventListener('click', function(e){
+          let betInput = null;
+          const parent = btn.closest('form, div, section, article') || document;
+          const candidates = parent.querySelectorAll('input, textarea, [contenteditable="true"]');
+          candidates.forEach(c=>{
+            const idn = (c.id||'') + ' ' + (c.name||'') + ' ' + (c.className||'');
+            if(/bet|wager|amount|apuesta|monto|stake|cantidad/i.test(idn) && !betInput) betInput = c;
+          });
+          if(!betInput){
+            Array.from(parent.querySelectorAll('input')).forEach(c=>{
+              if((c.type==='number' || c.type==='text') && !betInput) betInput = c;
+            });
+          }
+          if(betInput){
+            const num = toNumber(betInput.value || betInput.textContent || '');
+            const final = (num <= 0) ? 1 : num;
+            if(betInput.tagName === 'INPUT' || betInput.tagName === 'TEXTAREA'){
+              betInput.value = formatARS(final);
+            } else {
+              betInput.textContent = formatARS(final);
+            }
+          }
+          walkTextNodes(parent, sanitizeTextNode);
+        }, {capture:true});
       }
     });
   }
 
-  // Fetch admin.json from same folder
-  fetch('./admin.json', {cache: 'no-store'}).then(function(r){
-    if(!r.ok) throw new Error('no admin.json');
-    return r.json();
-  }).then(function(cfg){
-    var bal = cfg && (typeof cfg.balance_ARS !== 'undefined') ? cfg.balance_ARS : 1000;
-    applyBalance(bal);
-  }).catch(function(err){
-    // If fetch fails, apply default 1000 ARS
-    applyBalance(1000);
-    console.warn('admin.json not found or failed to load — using default 1000 ARS', err);
+  window.CasinoBalance = {
+    get: function(){ return Number(localStorage.getItem(STORAGE_KEY)) || 0; },
+    set: function(v){ writeStoredBalance(Number(v)||0); },
+    add: function(v){ const cur = Number(localStorage.getItem(STORAGE_KEY))||0; writeStoredBalance(cur + Number(v||0)); },
+    sub: function(v){ const cur = Number(localStorage.getItem(STORAGE_KEY))||0; writeStoredBalance(cur - Number(v||0)); },
+    reloadFromAdmin: function(){ return fetchAndApplyAdmin(); }
+  };
+
+  // Initialize: fetch admin.json immediately, then poll
+  fetchAndApplyAdmin().then(function(){
+    updateAllDisplays();
+    sanitizeBetInputs();
+    setInterval(function(){
+      fetchAndApplyAdmin().then(function(changed){
+        if(changed !== null){
+          console.info('admin.json updated, balance set to', changed);
+        }
+      });
+      updateAllDisplays();
+      sanitizeBetInputs();
+    }, POLL_INTERVAL_MS);
   });
 })();
 </script>
+
 </body>
 </html>
